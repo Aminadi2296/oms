@@ -64,21 +64,9 @@ async function handleRequest(request: NextRequest, method: string) {
         options.body = await request.text()
       }
     }
-    // MOCK: Bypass real fetch because backend is not available
-    if (path.includes('auth/me')) {
-      return NextResponse.json({ id: '1', username: 'admin', full_name: 'Admin Prueba' })
-    }
 
-    if (path.includes('clients')) {
-      return NextResponse.json({
-        data: [],
-        meta: { current_page: 1, last_page: 1, per_page: 10, total: 0 }
-      })
-    }
+    const response = await fetch(targetUrl, options)
 
-    return NextResponse.json({ message: 'Mocked proxy response', data: [] })
-
-    // const response = await fetch(targetUrl, options)
 
     if (response.status === 204 || response.status === 205) {
       return new NextResponse(null, {

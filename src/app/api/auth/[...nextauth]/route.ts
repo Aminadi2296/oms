@@ -2,7 +2,7 @@ import NextAuth from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 
 import { API_BASE_URL } from '@/constants/server/serverRoutes'
-import { API_ROUTES, ROUTES } from '@/constants/routes'
+import { ROUTES } from '@/constants/routes'
 
 const handler = NextAuth({
   providers: [
@@ -16,15 +16,43 @@ const handler = NextAuth({
         if (!credentials?.username || !credentials?.password) {
           return null
         }
-        // MOCK AUTH PARA DESARROLLO SIN BACKEND
-        // Si ingresas cualquier credencial, te deja pasar
-        return {
-          id: '1',
-          name: 'Admin Prueba',
-          email: 'admin@prueba.com',
-          username: credentials?.username || 'admin',
-          accessToken: 'mock-access-token',
-          refreshToken: 'mock-refresh-token'
+
+        try {
+          // FastAPI usa OAuth2PasswordRequestForm: form-urlencoded con "username" y "password"
+          const body = new URLSearchParams()
+
+          body.append('username', credentials.username)
+          body.append('password', credentials.password)
+
+          const loginRes = await fetch(`${API_BASE_URL}/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body
+          })
+
+          if (!loginRes.ok) return null
+
+          const data = await loginRes.json() // { access_token, token_type }
+
+          // Perfil del usuario con el token recién obtenido
+          const meRes = await fetch(`${API_BASE_URL}/auth/me`, {
+            headers: { Authorization: `Bearer ${data.access_token}` }
+          })
+
+          const me = meRes.ok ? await meRes.json() : {}
+
+          return {
+            id: String(me.id ?? ''),
+            name: me.full_name ?? '',
+            email: me.email ?? credentials.username,
+            username: credentials.username,
+            accessToken: data.access_token,
+            refreshToken: ''
+          }
+        } catch (error) {
+          console.error('Login error:', error)
+
+          return null
         }
       }
     })
