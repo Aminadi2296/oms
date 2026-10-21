@@ -20,12 +20,14 @@ import {
 } from '@mui/material'
 import { ROUTES } from '@/constants/routes'
 import { useSnackbar } from '@/hooks/useSnackbar'
+import { useApi } from '@/hooks/useApi'
 
 const steps = ['Identificación Fiscal', 'Ubicación', 'Contactos', 'Datos Comerciales']
 
 export default function ClientCreatePage() {
   const router = useRouter()
   const { showSuccess, showError } = useSnackbar()
+  const { fetchApi } = useApi()
   const [activeStep, setActiveStep] = useState(0)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -64,16 +66,25 @@ export default function ClientCreatePage() {
   const handleBack = () => setActiveStep(prev => prev - 1)
 
   const handleSubmit = async () => {
+    if (!formData.razonSocial?.trim()) {
+      showError('La Razón Social es requerida')
+      setActiveStep(0)
+      return
+    }
+
     setIsSubmitting(true)
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      await fetchApi('clients', {
+        method: 'POST',
+        body: formData
+      })
       showSuccess('Cliente creado exitosamente!')
       setTimeout(() => {
         router.push(ROUTES.CLIENTS.INDEX)
-      }, 1500)
+      }, 1000)
     } catch (error: any) {
-      showError('Error al crear el cliente')
+      showError(error?.message || 'Error al crear el cliente')
     } finally {
       setIsSubmitting(false)
     }

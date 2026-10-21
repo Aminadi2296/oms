@@ -15,8 +15,15 @@ import { useClients } from '@/hooks/useClients'
 import { useClientSearch } from '@/hooks/useClientSearch'
 import type { Client } from '@/types/client'
 
-const formatFullName = (client: Client) =>
-  client.client_type === 'J' ? client?.last_name : `${client.first_name || ''} ${client.last_name || ''}`.trim()
+const formatFullName = (client: Client) => {
+  if (client?.razon_social) {
+    return client.nombre_comercial
+      ? `${client.razon_social} (${client.nombre_comercial})`
+      : client.razon_social
+  }
+  if (client?.client_type === 'J') return client?.last_name || 'Sin nombre'
+  return `${client?.first_name || ''} ${client?.last_name || ''}`.trim() || 'Sin nombre'
+}
 
 const ClientsPage = () => {
   const { status: sessionStatus } = useSession()
@@ -61,16 +68,16 @@ const ClientsPage = () => {
       },
       {
         key: 'document' as const,
-        label: 'Documento',
+        label: 'Documento / Fiscal',
         render: (_: any, client: Client) => (
           <Box>
-            {client?.client_type}-{client?.document_number}
+            {client?.numero_fiscal || (client?.document_number ? `${client?.client_type || ''}-${client.document_number}` : 'N/A')}
           </Box>
         )
       },
       {
         key: 'client' as const,
-        label: 'Cliente',
+        label: 'Cliente / Empresa',
         render: (_: any, client: Client) => (
           <Box
             sx={{
@@ -107,20 +114,38 @@ const ClientsPage = () => {
                 maxWidth: '100%'
               }}
             >
-              {client.email_1 || 'Sin correo'}
+              {client.correo_principal || client.email_1 || 'Sin correo'}
             </Typography>
           </Box>
         )
       },
       {
-        key: 'type' as const,
-        label: 'Tipo',
-        render: (_: any, client: Client) => client?.person_type || ''
+        key: 'phone' as const,
+        label: 'Teléfono',
+        render: (_: any, client: Client) => (
+          <Typography variant='body2'>
+            {client?.telefono_principal || client?.mobile_1 || 'N/A'}
+          </Typography>
+        )
       },
       {
-        key: 'birth_date' as const,
-        label: 'Fecha Nac./Fund.',
-        render: (date: string) => (date ? new Date(date).toLocaleDateString() : 'N/A')
+        key: 'status' as const,
+        label: 'Estado',
+        render: (_: any, client: Client) => (
+          <Typography
+            variant='caption'
+            sx={{
+              px: 1.5,
+              py: 0.5,
+              borderRadius: 1,
+              bgcolor: (client?.estatus || 'Activo').toLowerCase() === 'activo' ? 'success.light' : 'grey.300',
+              color: (client?.estatus || 'Activo').toLowerCase() === 'activo' ? 'success.dark' : 'text.secondary',
+              fontWeight: 600
+            }}
+          >
+            {client?.estatus || 'Activo'}
+          </Typography>
+        )
       },
       {
         key: 'actions' as const,

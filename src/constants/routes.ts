@@ -35,12 +35,14 @@ export const ROUTES = {
     INDEX: '/clients',
     CREATE: '/clients/create',
     CREATE_BULK: '/clients/create-bulk',
-    DETAIL: (id: string | number) => '/clients/$id'
+    // Fixed placeholder to correctly interpolate the client id
+    DETAIL: (id: string | number) => `/clients/${id}`
   },
   ORDERS: {
     INDEX: '/orders',
     CREATE: '/orders/create',
-    DETAIL: (id: string | number) => '/orders/$id'
+    DETAIL: (id: string | number) => `/orders/${id}`
   },
   ABOUT: '/about'
 }
+

@@ -74,11 +74,15 @@ export function usePaginatedResource<T>({
 
         const raw = await fetchApi<RawPaginatedResponse>(url)
 
-        const items = Array.isArray(raw?.[dataKey]) ? (raw[dataKey] as T[]) : []
+        const items = Array.isArray(raw?.[dataKey])
+          ? (raw[dataKey] as T[])
+          : Array.isArray(raw?.data)
+          ? (raw.data as T[])
+          : []
 
         // Use the pagination data directly from the API response
-        const apiTotal = raw.total || 0
-        const apiPages = raw.pages || 1
+        const apiTotal = raw?.total ?? raw?.meta?.total ?? 0
+        const apiPages = raw?.pages ?? raw?.meta?.last_page ?? 1
 
         setData(items)
         setTotal(apiTotal)
