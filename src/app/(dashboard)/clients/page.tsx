@@ -59,106 +59,64 @@ const ClientsPage = () => {
     setAnchorEl(null)
   }
 
-  const columns = useMemo(
-    () => [
-      {
-        key: 'id' as const,
-        label: 'ID',
-        render: (value: number) => `#${value}`
-      },
-      {
-        key: 'document' as const,
-        label: 'Documento / Fiscal',
-        render: (_: any, client: Client) => (
-          <Box>
-            {client?.numero_fiscal || (client?.document_number ? `${client?.client_type || ''}-${client.document_number}` : 'N/A')}
-          </Box>
-        )
-      },
-      {
-        key: 'client' as const,
-        label: 'Cliente / Empresa',
-        render: (_: any, client: Client) => (
-          <Box
-            sx={{
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
-              width: '250px',
-              minWidth: '250px'
-            }}
-          >
-            <Tooltip title={formatFullName(client)} placement='top-start' arrow>
-              <Typography
-                variant='body2'
-                sx={{
-                  fontWeight: 500,
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  maxWidth: '100%'
-                }}
-              >
-                {formatFullName(client)}
-              </Typography>
-            </Tooltip>
-
-            <Typography
-              variant='caption'
-              sx={{
-                fontSize: '0.8em',
-                color: '#666',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                maxWidth: '100%'
-              }}
-            >
-              {client.correo_principal || client.email_1 || 'Sin correo'}
-            </Typography>
-          </Box>
-        )
-      },
-      {
-        key: 'phone' as const,
-        label: 'Teléfono',
-        render: (_: any, client: Client) => (
-          <Typography variant='body2'>
-            {client?.telefono_principal || client?.mobile_1 || 'N/A'}
-          </Typography>
-        )
-      },
-      {
-        key: 'status' as const,
-        label: 'Estado',
-        render: (_: any, client: Client) => (
-          <Typography
-            variant='caption'
-            sx={{
-              px: 1.5,
-              py: 0.5,
-              borderRadius: 1,
-              bgcolor: (client?.estatus || 'Activo').toLowerCase() === 'activo' ? 'success.light' : 'grey.300',
-              color: (client?.estatus || 'Activo').toLowerCase() === 'activo' ? 'success.dark' : 'text.secondary',
-              fontWeight: 600
-            }}
-          >
-            {client?.estatus || 'Activo'}
-          </Typography>
-        )
-      },
-      {
-        key: 'actions' as const,
-        label: 'Acciones',
-        render: (_: any, client: Client) => (
-          <Button variant='outlined' color='primary' size='small' href={ROUTES.CLIENTS.DETAIL(client.id)}>
-            Ver Detalles
-          </Button>
-        )
-      }
-    ],
-    []
-  )
+  const columns = useMemo(() => [
+    {
+      key: 'id' as const,
+      label: 'ID',
+      render: (value: number) => `#${value}`
+    },
+    {
+      key: 'commercial_name' as const,
+      label: 'Nombre Comercial',
+      render: (_: any, client: Client) => (
+        <Box>{client?.nombre_comercial ?? (client as any).nombreComercial ?? '-'}</Box>
+      )
+    },
+    {
+      key: 'document' as const,
+      label: 'Documento / Fiscal',
+      render: (_: any, client: Client) => (
+        <Box>{client?.numero_fiscal ?? (client as any).numeroFiscal ?? (client?.document_number ? `${client?.client_type ?? ''}-${client.document_number}` : '-')}</Box>
+      )
+    },
+    {
+      key: 'contact' as const,
+      label: 'Contacto',
+      render: (_: any, client: Client) => (
+        <Box>{client?.contacto_nombre ?? (client as any).contactoNombre ?? client?.email_1 ?? client?.correo_principal ?? '-'}</Box>
+      )
+    },
+    {
+      key: 'phone' as const,
+      label: 'Teléfono',
+      render: (_: any, client: Client) => (
+        <Typography variant='body2'>{client?.telefono_principal ?? (client as any).telefonoPrincipal ?? client?.mobile_1 ?? 'N/A'}</Typography>
+      )
+    },
+    {
+      key: 'status' as const,
+      label: 'Estado',
+      render: (_: any, client: Client) => (
+        <Typography variant='caption' sx={{
+          px: 1.5,
+          py: 0.5,
+          borderRadius: 1,
+          bgcolor: (client?.estatus || 'Activo').toLowerCase() === 'activo' ? 'success.light' : 'grey.300',
+          color: (client?.estatus || 'Activo').toLowerCase() === 'activo' ? 'success.dark' : 'text.secondary',
+          fontWeight: 600
+        }}>{client?.estatus || 'Activo'}</Typography>
+      )
+    },
+    {
+      key: 'actions' as const,
+      label: 'Acciones',
+      render: (_: any, client: Client) => (
+        <Button variant='outlined' color='primary' size='small' href={ROUTES.CLIENTS.DETAIL(client.id)}>
+          Ver Detalles
+        </Button>
+      )
+    }
+  ], [])
 
   const handleSearch = useCallback(
     (query: string) => {
@@ -193,17 +151,8 @@ const ClientsPage = () => {
 
   return (
     <Box sx={{ p: { xs: 2, md: 4 } }}>
-      <Box
-        sx={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          mb: 3
-        }}
-      >
-        <Typography variant='h4' sx={{ mb: 3, fontWeight: 600 }}>
-          {CLIENTS_PAGE.TITLE}
-        </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Typography variant='h4' sx={{ mb: 3, fontWeight: 600 }}>{CLIENTS_PAGE.TITLE}</Typography>
         <div>
           <Button variant='contained' color='primary' endIcon={<ArrowDropDownIcon />} onClick={handleClick}>
             {CLIENTS_PAGE.CREATE_CLIENT}
@@ -211,44 +160,21 @@ const ClientsPage = () => {
 
           <Menu anchorEl={anchorEl} open={open} onClose={handleClose}>
             <MenuItem onClick={handleClose}>
-              <Link href={ROUTES.CLIENTS.CREATE} style={{ textDecoration: 'none', color: 'inherit' }}>
-                Crear cliente individual
-              </Link>
+              <Link href={ROUTES.CLIENTS.CREATE} style={{ textDecoration: 'none', color: 'inherit' }}>Crear cliente individual</Link>
             </MenuItem>
             <MenuItem onClick={handleClose}>
-              <Link href={ROUTES.CLIENTS.CREATE_BULK} style={{ textDecoration: 'none', color: 'inherit' }}>
-                Crear cliente masivo
-              </Link>
+              <Link href={ROUTES.CLIENTS.CREATE_BULK} style={{ textDecoration: 'none', color: 'inherit' }}>Crear cliente masivo</Link>
             </MenuItem>
           </Menu>
         </div>
       </Box>
 
       <Paper sx={{ p: 2, mb: 3 }}>
-        <SearchBar
-          placeholder={CLIENTS_PAGE.SEARCH_PLACEHOLDER}
-          value={search}
-          onChange={handleSearch}
-          onClear={() => {
-            setSearch('')
-            setSearchPage(1)
-            setPage(1)
-          }}
-          delay={400}
-        />
+        <SearchBar placeholder={CLIENTS_PAGE.SEARCH_PLACEHOLDER} value={search} onChange={handleSearch} onClear={() => { setSearch(''); setSearchPage(1); setPage(1); }} delay={400} />
       </Paper>
 
       <Box sx={{ mt: 2 }}>
-        <DataTable
-          columns={columns}
-          rows={clientsToShow}
-          emptyMessage={CLIENTS_PAGE.NO_RESULTS}
-          page={currentPage}
-          onPageChange={currentSetPage}
-          itemsPerPage={perPage}
-          totalPages={currentTotalPages}
-          paginateLocally={false}
-        />
+        <DataTable columns={columns} rows={clientsToShow} emptyMessage={CLIENTS_PAGE.NO_RESULTS} page={currentPage} onPageChange={currentSetPage} itemsPerPage={perPage} totalPages={currentTotalPages} paginateLocally={false} />
       </Box>
     </Box>
   )
