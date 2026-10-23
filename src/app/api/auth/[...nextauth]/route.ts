@@ -47,7 +47,9 @@ const handler = NextAuth({
             email: me.email ?? credentials.username,
             username: credentials.username,
             accessToken: data.access_token,
-            refreshToken: ''
+            refreshToken: '',
+            companyId: me.company_id ?? me.companyId ?? undefined,
+            role: me.role ?? undefined
           }
         } catch (error) {
           console.error('Login error:', error)
@@ -63,6 +65,8 @@ const handler = NextAuth({
         token.accessToken = user.accessToken
         token.refreshToken = user.refreshToken
         token.username = user.username
+        token.companyId = user.companyId
+        token.role = user.role
       }
 
       return token
@@ -71,6 +75,8 @@ const handler = NextAuth({
       if (token) {
         session.user.id = token.sub || ''
         session.user.username = token.username
+        session.user.companyId = token.companyId
+        session.user.role = token.role
         session.accessToken = token.accessToken
         session.refreshToken = token.refreshToken
       }

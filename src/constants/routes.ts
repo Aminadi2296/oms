@@ -23,8 +23,18 @@ export const API_ROUTES = {
     CREATE_BULK: 'clients/bulk-upload'
   },
   ORDERS: {
-    LIST: '/orders',
-    GET: '/orders/:id'
+    LIST: 'orders',
+    GET: (id: string | number) => `orders/${id}`,
+    CREATE: 'orders',
+    UPDATE: (id: string | number) => `orders/${id}`,
+    MOVE_STAGE: (id: string | number) => `orders/${id}/stage`,
+    ASSIGN: (id: string | number) => `orders/${id}/assign`
+  },
+  COMPANIES: {
+    STAGES: (companyId: number) => `companies/${companyId}/stages`,
+    STAGE: (companyId: number, stageId: number) => `companies/${companyId}/stages/${stageId}`,
+    CATEGORIES: (companyId: number) => `companies/${companyId}/categories`,
+    USERS: (companyId: number) => `companies/${companyId}/users`
   }
 }
 
@@ -40,9 +50,9 @@ export const ROUTES = {
   },
   ORDERS: {
     INDEX: '/orders',
+    STAGES: '/orders/stages',
     CREATE: '/orders/create',
     DETAIL: (id: string | number) => `/orders/${id}`
   },
   ABOUT: '/about'
 }
-
