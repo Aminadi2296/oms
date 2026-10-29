@@ -38,6 +38,11 @@ html {
   display: flex;
   inline-size: 100%;
   min-block-size: 100%;
+  font-family: var(--font-plus-jakarta-sans), sans-serif;
+}
+
+body {
+  font-family: var(--font-plus-jakarta-sans), sans-serif;
 }
 
 a {

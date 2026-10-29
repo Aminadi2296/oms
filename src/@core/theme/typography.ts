@@ -6,6 +6,7 @@ const typography = (fontFamily: string): Theme['typography'] =>
     fontFamily:
       typeof fontFamily === 'undefined' || fontFamily === ''
         ? [
+            'Plus Jakarta Sans',
             'Inter',
             'sans-serif',
             '-apple-system',

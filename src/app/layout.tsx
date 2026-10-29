@@ -1,3 +1,6 @@
+// Next Imports
+import { Plus_Jakarta_Sans } from 'next/font/google'
+
 // MUI Imports
 import InitColorSchemeScript from '@mui/material/InitColorSchemeScript'
 
@@ -28,6 +31,12 @@ export const metadata = {
   description: METADATA.layout.description
 }
 
+const plusJakartaSans = Plus_Jakarta_Sans({
+  subsets: ['latin'],
+  weight: ['200', '300', '400', '500', '600', '700', '800'],
+  variable: '--font-plus-jakarta-sans'
+})
+
 const RootLayout = async (props: ChildrenType) => {
   const { children } = props
 
@@ -37,8 +46,8 @@ const RootLayout = async (props: ChildrenType) => {
   const direction = 'ltr'
 
   return (
-    <html id='__next' lang='en' dir={direction} suppressHydrationWarning>
-      <body className='flex is-full min-bs-full flex-auto flex-col'>
+    <html id='__next' lang='en' dir={direction} suppressHydrationWarning className={plusJakartaSans.variable}>
+      <body className={`flex is-full min-bs-full flex-auto flex-col ${plusJakartaSans.className}`}>
         <InitColorSchemeScript attribute='data' defaultMode={systemMode} />
         <ReduxProvider>{children}</ReduxProvider>
       </body>
