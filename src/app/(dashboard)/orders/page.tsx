@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useCallback, useMemo } from 'react'
+import React, { useState, useCallback, useMemo, useEffect } from 'react'
 
 import {
   Box,
@@ -20,15 +20,13 @@ import {
   MenuItem,
   Select,
   InputLabel,
-  FormControl,
-  FormHelperText
+  FormControl
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import SettingsIcon from '@mui/icons-material/Settings'
 import PersonOutlineIcon from '@mui/icons-material/PersonOutline'
 import AccessTimeIcon from '@mui/icons-material/AccessTime'
 import SubjectIcon from '@mui/icons-material/Subject'
-import StickyNote2OutlinedIcon from '@mui/icons-material/StickyNote2Outlined'
 import ImageOutlinedIcon from '@mui/icons-material/ImageOutlined'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
@@ -51,29 +49,14 @@ import { CSS } from '@dnd-kit/utilities'
 import { useCompanyStages } from '@/hooks/useCompanyStages'
 import { useOrders } from '@/hooks/useOrders'
 import { useCompanyUsers } from '@/hooks/useCompanyUsers'
-import { useOrderCategories } from '@/hooks/useOrderCategories'
 import { useApi } from '@/hooks/useApi'
 import { useSnackbar } from '@/hooks/useSnackbar'
 import { ROUTES } from '@/constants/routes'
 import type { Order, CompanyStage, CompanyUser } from '@/types/order'
+import { getCategoryAccent, getInitials, getUserAvatarUrl, stringToColor } from '@/utils/orderUi'
+import CreateOrderDialog from './components/CreateOrderDialog'
 
 // ─────────────────────────── Helpers ────────────────────────────────────────
-// Deterministic color from a string (category labels, avatar fallback)
-function stringToColor(str: string, s = 55, l = 45) {
-  let hash = 0
-
-  for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash)
-
-  return `hsl(${Math.abs(hash) % 360}, ${s}%, ${l}%)`
-}
-
-function getInitials(name?: string) {
-  if (!name) return ''
-  const parts = name.trim().split(/\s+/)
-
-  return ((parts[0]?.[0] || '') + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase()
-}
-
 function formatShortDate(date?: string | null) {
   if (!date) return null
   const d = new Date(date)
@@ -81,13 +64,6 @@ function formatShortDate(date?: string | null) {
   if (isNaN(d.getTime())) return null
 
   return d.toLocaleDateString('es', { day: 'numeric', month: 'short' })
-}
-
-// Placeholder avatar (same one used in the navbar user dropdown) until the API returns real photos
-const DEFAULT_AVATAR = '/images/avatars/1.png'
-
-function getUserAvatarUrl(user?: CompanyUser) {
-  return user?.avatar_url || user?.photo_url || user?.avatar || DEFAULT_AVATAR
 }
 
 // ─────────────────────────── Assignee Avatar ────────────────────────────────
@@ -140,12 +116,15 @@ interface OrderCardProps {
 const cardBaseSx = {
   p: 1.5,
   mb: 1.25,
-  borderRadius: 2,
+  borderRadius: 1.5,
   bgcolor: 'background.paper',
   border: '1px solid',
   borderColor: 'divider',
-  boxShadow: '0 1px 2px rgba(0,0,0,0.08)'
+  borderLeftWidth: 4,
+  boxShadow: '0 1px 2px rgba(0,0,0,0.10)'
 } as const
+
+const labelSx = { fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4, fontSize: 10.5 } as const
 
 function SortableOrderCard({ order, onClick, users }: OrderCardProps) {
   const [hovered, setHovered] = useState(false)
@@ -162,8 +141,9 @@ function SortableOrderCard({ order, onClick, users }: OrderCardProps) {
 
   const assignedUser = users.find(u => u.id === order.assigned_user_id)
   const dateLabel = formatShortDate(order.fecha_creacion)
+  const accent = getCategoryAccent(order.category_name)
   const expanded = hovered && !isDragging
-  const hasDetails = !!(order.observaciones || order.notes)
+  const hasDetails = !!(order.category_name || order.observaciones || order.notes)
 
   return (
     <Paper
@@ -177,50 +157,44 @@ function SortableOrderCard({ order, onClick, users }: OrderCardProps) {
       onClick={() => onClick(order)}
       sx={{
         ...cardBaseSx,
+        borderLeftColor: accent,
         cursor: 'pointer',
         touchAction: 'manipulation',
-        transition: 'box-shadow 0.15s ease, border-color 0.15s ease',
-        '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.14)', borderColor: 'primary.main' },
+        transition: 'box-shadow 0.15s ease',
+        '&:hover': { boxShadow: '0 6px 16px rgba(0,0,0,0.18)' },
         '&:active': { cursor: 'grabbing' },
         '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: 2 }
       }}
     >
-      {/* Category label */}
-      {order.category_name && (
-        <Box
-          sx={{
-            display: 'inline-block',
-            px: 1,
-            py: 0.125,
-            mb: 0.75,
-            borderRadius: 1,
-            bgcolor: stringToColor(order.category_name, 60, 48),
-            color: '#fff',
-            fontSize: 11,
-            fontWeight: 600,
-            lineHeight: 1.6
-          }}
-        >
-          {order.category_name}
-        </Box>
-      )}
-
-      {/* Title */}
-      <Typography variant='subtitle2' sx={{ fontWeight: 700, lineHeight: 1.3 }}>
+      {/* Title + client */}
+      <Typography variant='body2' sx={{ fontWeight: 600, lineHeight: 1.35 }}>
         {order.numero}
       </Typography>
-      {order.client_name && (
-        <Typography variant='body2' color='text.secondary' noWrap>
-          {order.client_name}
-        </Typography>
-      )}
+      <Typography
+        variant='body2'
+        noWrap
+        sx={{
+          color: order.client_name ? 'text.secondary' : 'text.disabled',
+          fontStyle: order.client_name ? 'normal' : 'italic'
+        }}
+      >
+        {order.client_name || 'Sin cliente'}
+      </Typography>
 
-      {/* Expandable details on hover */}
+      {/* Details revealed on hover */}
       <Collapse in={expanded && hasDetails} timeout={180} unmountOnExit>
-        <Box sx={{ mt: 1, pt: 1, borderTop: '1px dashed', borderColor: 'divider' }}>
+        <Box sx={{ mt: 1, pt: 1, borderTop: '1px dashed', borderColor: 'divider', display: 'grid', gap: 1 }}>
+          {order.category_name && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+              <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: accent, flexShrink: 0 }} />
+              <Typography variant='caption' sx={{ fontWeight: 600 }}>
+                {order.category_name}
+              </Typography>
+            </Box>
+          )}
           {order.observaciones && (
-            <Box sx={{ mb: order.notes ? 1 : 0 }}>
-              <Typography variant='caption' color='text.disabled' sx={{ fontWeight: 600, textTransform: 'uppercase' }}>
+            <Box>
+              <Typography variant='caption' color='text.disabled' sx={labelSx}>
                 Observaciones
               </Typography>
               <Typography
@@ -239,7 +213,7 @@ function SortableOrderCard({ order, onClick, users }: OrderCardProps) {
           )}
           {order.notes && (
             <Box>
-              <Typography variant='caption' color='text.disabled' sx={{ fontWeight: 600, textTransform: 'uppercase' }}>
+              <Typography variant='caption' color='text.disabled' sx={labelSx}>
                 Notas
               </Typography>
               <Typography
@@ -260,29 +234,24 @@ function SortableOrderCard({ order, onClick, users }: OrderCardProps) {
         </Box>
       </Collapse>
 
-      {/* Footer: meta icons + assignee */}
+      {/* Footer: date + indicators (left), assignee (right) */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 1.25 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, color: 'text.secondary' }}>
-          {order.observaciones && (
-            <Tooltip title='Tiene observaciones'>
-              <SubjectIcon sx={{ fontSize: 16 }} />
-            </Tooltip>
+          {dateLabel && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <AccessTimeIcon sx={{ fontSize: 14 }} />
+              <Typography variant='caption'>{dateLabel}</Typography>
+            </Box>
           )}
-          {order.notes && (
-            <Tooltip title='Tiene notas'>
-              <StickyNote2OutlinedIcon sx={{ fontSize: 16 }} />
+          {(order.observaciones || order.notes) && (
+            <Tooltip title='Tiene observaciones o notas'>
+              <SubjectIcon sx={{ fontSize: 15 }} />
             </Tooltip>
           )}
           {order.photo_url && (
             <Tooltip title='Tiene foto adjunta'>
-              <ImageOutlinedIcon sx={{ fontSize: 16 }} />
+              <ImageOutlinedIcon sx={{ fontSize: 15 }} />
             </Tooltip>
-          )}
-          {dateLabel && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <AccessTimeIcon sx={{ fontSize: 15 }} />
-              <Typography variant='caption'>{dateLabel}</Typography>
-            </Box>
           )}
         </Box>
 
@@ -292,7 +261,7 @@ function SortableOrderCard({ order, onClick, users }: OrderCardProps) {
               {assignedUser.full_name}
             </Typography>
           )}
-          <AssigneeAvatar user={assignedUser} />
+          <AssigneeAvatar user={assignedUser} size={26} />
         </Box>
       </Box>
     </Paper>
@@ -308,19 +277,19 @@ function OrderCardOverlay({ order, users }: { order: Order; users: CompanyUser[]
       elevation={0}
       sx={{
         ...cardBaseSx,
+        borderLeftColor: getCategoryAccent(order.category_name),
         width: 280,
         cursor: 'grabbing',
-        borderColor: 'primary.main',
-        boxShadow: '0 12px 28px rgba(0,0,0,0.25)',
+        boxShadow: '0 14px 30px rgba(0,0,0,0.30)',
         transform: 'rotate(2.5deg)'
       }}
     >
-      <Typography variant='subtitle2' sx={{ fontWeight: 700 }}>
+      <Typography variant='body2' sx={{ fontWeight: 600 }}>
         {order.numero}
       </Typography>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 0.5 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 0.25 }}>
         <Typography variant='body2' color='text.secondary' noWrap>
-          {order.client_name || ' '}
+          {order.client_name || 'Sin cliente'}
         </Typography>
         <AssigneeAvatar user={assignedUser} size={24} />
       </Box>
@@ -333,10 +302,11 @@ interface StageColumnProps {
   stage: CompanyStage
   orders: Order[]
   onCardClick: (order: Order) => void
+  onAddOrder: (stageId: number) => void
   users: CompanyUser[]
 }
 
-function StageColumn({ stage, orders, onCardClick, users }: StageColumnProps) {
+function StageColumn({ stage, orders, onCardClick, onAddOrder, users }: StageColumnProps) {
   const orderIds = useMemo(() => orders.map(o => `order-${o.id}`), [orders])
 
   // Makes the whole column a valid drop target (needed to drop into empty columns)
@@ -345,259 +315,70 @@ function StageColumn({ stage, orders, onCardClick, users }: StageColumnProps) {
   return (
     <Box
       sx={{
-        minWidth: 280,
-        maxWidth: 320,
         flex: '0 0 300px',
-        bgcolor: isOver ? 'action.selected' : 'action.hover',
-        borderRadius: 3,
-        p: 1.5,
+        width: 300,
         display: 'flex',
         flexDirection: 'column',
-        maxHeight: 'calc(100vh - 200px)',
-        border: '1px solid',
-        borderColor: isOver ? 'primary.main' : 'divider',
-        transition: 'background-color 0.15s ease, border-color 0.15s ease'
+        maxHeight: 'calc(100vh - 210px)',
+        borderRadius: 2,
+        p: 1,
+        bgcolor: isOver ? 'action.selected' : 'action.hover',
+        outline: '2px solid',
+        outlineColor: isOver ? 'primary.main' : 'transparent',
+        transition: 'background-color 0.15s ease, outline-color 0.15s ease'
       }}
     >
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5, px: 0.5 }}>
+      {/* Column header pill */}
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          px: 1.5,
+          py: 1,
+          mb: 1,
+          borderRadius: 1.5,
+          bgcolor: 'background.paper',
+          border: '1px solid',
+          borderColor: 'divider'
+        }}
+      >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
-          <Typography variant='subtitle1' noWrap sx={{ fontWeight: 700 }}>
+          <Typography variant='subtitle2' noWrap sx={{ fontWeight: 700 }}>
             {stage.name}
           </Typography>
-          <Chip label={orders.length} size='small' sx={{ height: 20, fontWeight: 600 }} />
+          <Typography variant='caption' color='text.disabled' sx={{ fontWeight: 600 }}>
+            {orders.length}
+          </Typography>
         </Box>
-        {stage.is_final && <Chip label='Final' size='small' color='success' />}
+        {stage.is_final && <Chip label='Final' size='small' color='success' sx={{ height: 20, fontSize: 11 }} />}
       </Box>
 
-      <Box ref={setNodeRef} sx={{ flex: 1, overflowY: 'auto', minHeight: 100, px: 0.25 }}>
+      {/* Cards */}
+      <Box ref={setNodeRef} sx={{ flex: 1, overflowY: 'auto', minHeight: 60, px: 0.25 }}>
         <SortableContext items={orderIds} strategy={verticalListSortingStrategy}>
           {orders.map(order => (
             <SortableOrderCard key={order.id} order={order} onClick={onCardClick} users={users} />
           ))}
         </SortableContext>
         {orders.length === 0 && (
-          <Box
-            sx={{
-              mt: 1,
-              py: 4,
-              textAlign: 'center',
-              border: '1px dashed',
-              borderColor: isOver ? 'primary.main' : 'divider',
-              borderRadius: 2
-            }}
-          >
-            <Typography variant='body2' color='text.disabled'>
-              {isOver ? 'Soltar aquí' : 'Sin pedidos'}
-            </Typography>
-          </Box>
+          <Typography variant='body2' color='text.disabled' sx={{ textAlign: 'center', py: 3, fontStyle: 'italic' }}>
+            {isOver ? 'Soltar aquí' : 'Sin pedidos'}
+          </Typography>
         )}
       </Box>
+
+      {/* Add card */}
+      <Button
+        fullWidth
+        size='small'
+        startIcon={<AddIcon />}
+        onClick={() => onAddOrder(stage.id)}
+        sx={{ justifyContent: 'flex-start', mt: 0.5, color: 'text.secondary', textTransform: 'none', fontWeight: 500 }}
+      >
+        Agregar pedido
+      </Button>
     </Box>
-  )
-}
-
-// ─────────────────────────── Create Order Dialog ────────────────────────────
-interface CreateOrderDialogProps {
-  open: boolean
-  onClose: () => void
-  onCreated: () => void
-  stages: CompanyStage[]
-  companyId: number | null
-}
-
-function CreateOrderDialog({ open, onClose, onCreated, stages, companyId }: CreateOrderDialogProps) {
-  const { fetchApi } = useApi()
-  const { showSuccess, showError } = useSnackbar()
-  const { categories, loading: categoriesLoading, createCategory } = useOrderCategories(companyId)
-  const [submitting, setSubmitting] = useState(false)
-  const [form, setForm] = useState({
-    client_id: '',
-    categoria_id: '',
-    observaciones: '',
-    notes: '',
-    current_stage_id: ''
-  })
-
-  const [addingCategory, setAddingCategory] = useState(false)
-  const [newCategoryName, setNewCategoryName] = useState('')
-  const [savingCategory, setSavingCategory] = useState(false)
-
-  const handleAddCategory = async () => {
-    const name = newCategoryName.trim()
-
-    if (!name) return
-
-    if (categories.some(c => c.name.trim().toLowerCase() === name.toLowerCase())) {
-      showError('Ya existe una categoría con ese nombre')
-
-      return
-    }
-
-    setSavingCategory(true)
-    try {
-      const created = await createCategory(name)
-
-      if (created) setForm(f => ({ ...f, categoria_id: created.id.toString() }))
-      showSuccess('Categoría creada')
-      setNewCategoryName('')
-      setAddingCategory(false)
-    } catch (err: any) {
-      showError(err?.message || 'Error al crear categoría')
-    } finally {
-      setSavingCategory(false)
-    }
-  }
-
-  const handleCreate = async () => {
-    if (!companyId) return
-    setSubmitting(true)
-    try {
-      const body: any = {
-        observaciones: form.observaciones || null,
-        notes: form.notes || null
-      }
-
-      if (form.client_id) body.client_id = Number(form.client_id)
-      if (form.categoria_id) body.categoria_id = Number(form.categoria_id)
-      if (form.current_stage_id) {
-        body.current_stage_id = Number(form.current_stage_id)
-      } else if (stages.length > 0) {
-        body.current_stage_id = stages[0].id
-      }
-
-      await fetchApi('orders', { method: 'POST', body })
-      showSuccess('Pedido creado exitosamente')
-      setForm({ client_id: '', categoria_id: '', observaciones: '', notes: '', current_stage_id: '' })
-      onCreated()
-      onClose()
-    } catch (err: any) {
-      showError(err?.message || 'Error al crear pedido')
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth='sm'>
-      <DialogTitle sx={{ fontWeight: 700 }}>Nuevo Pedido</DialogTitle>
-      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
-        <TextField
-          label='ID del Cliente (opcional)'
-          type='number'
-          value={form.client_id}
-          onChange={e => setForm(f => ({ ...f, client_id: e.target.value }))}
-          fullWidth
-          margin='dense'
-        />
-        <FormControl fullWidth margin='dense' disabled={categoriesLoading}>
-          <InputLabel>Categoría</InputLabel>
-          <Select
-            value={form.categoria_id}
-            label='Categoría'
-            onChange={e => setForm(f => ({ ...f, categoria_id: e.target.value as string }))}
-          >
-            <MenuItem value=''>Sin categoría</MenuItem>
-            {categories.map(c => (
-              <MenuItem key={c.id} value={c.id.toString()}>
-                {c.name}
-              </MenuItem>
-            ))}
-          </Select>
-          {!categoriesLoading && categories.length === 0 && (
-            <FormHelperText>Aún no hay categorías creadas</FormHelperText>
-          )}
-        </FormControl>
-
-        {addingCategory ? (
-          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mt: -1 }}>
-            <TextField
-              autoFocus
-              size='small'
-              label='Nueva categoría'
-              value={newCategoryName}
-              onChange={e => setNewCategoryName(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  handleAddCategory()
-                }
-
-                if (e.key === 'Escape') {
-                  e.stopPropagation()
-                  setAddingCategory(false)
-                  setNewCategoryName('')
-                }
-              }}
-              disabled={savingCategory}
-              fullWidth
-            />
-            <Button
-              variant='contained'
-              onClick={handleAddCategory}
-              disabled={savingCategory || !newCategoryName.trim()}
-              sx={{ whiteSpace: 'nowrap', minWidth: 96 }}
-            >
-              {savingCategory ? <CircularProgress size={20} /> : 'Agregar'}
-            </Button>
-            <Button
-              onClick={() => {
-                setAddingCategory(false)
-                setNewCategoryName('')
-              }}
-              disabled={savingCategory}
-            >
-              Cancelar
-            </Button>
-          </Box>
-        ) : (
-          <Box sx={{ mt: -1 }}>
-            <Button size='small' startIcon={<AddIcon />} onClick={() => setAddingCategory(true)}>
-              Nueva categoría
-            </Button>
-          </Box>
-        )}
-        <FormControl fullWidth margin='dense'>
-          <InputLabel>Etapa Inicial</InputLabel>
-          <Select
-            value={form.current_stage_id || (stages[0]?.id?.toString() ?? '')}
-            label='Etapa Inicial'
-            onChange={e => setForm(f => ({ ...f, current_stage_id: e.target.value as string }))}
-          >
-            {stages.map(s => (
-              <MenuItem key={s.id} value={s.id.toString()}>
-                {s.name}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-        <TextField
-          label='Observaciones'
-          multiline
-          rows={3}
-          value={form.observaciones}
-          onChange={e => setForm(f => ({ ...f, observaciones: e.target.value }))}
-          fullWidth
-          margin='dense'
-        />
-        <TextField
-          label='Notas'
-          multiline
-          rows={2}
-          value={form.notes}
-          onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-          fullWidth
-          margin='dense'
-        />
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose} disabled={submitting}>
-          Cancelar
-        </Button>
-        <Button variant='contained' onClick={handleCreate} disabled={submitting}>
-          {submitting ? <CircularProgress size={20} /> : 'Crear Pedido'}
-        </Button>
-      </DialogActions>
-    </Dialog>
   )
 }
 
@@ -776,6 +557,7 @@ export default function OrdersPage() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
+  const [createStageId, setCreateStageId] = useState<number | null>(null)
 
   // Group orders by stage
   const ordersByStage = useMemo(() => {
@@ -891,7 +673,14 @@ export default function OrdersPage() {
           <Button variant='outlined' startIcon={<SettingsIcon />} onClick={() => router.push(ROUTES.ORDERS.STAGES)}>
             Etapas
           </Button>
-          <Button variant='contained' startIcon={<AddIcon />} onClick={() => setCreateOpen(true)}>
+          <Button
+            variant='contained'
+            startIcon={<AddIcon />}
+            onClick={() => {
+              setCreateStageId(null)
+              setCreateOpen(true)
+            }}
+          >
             Nuevo Pedido
           </Button>
         </Box>
@@ -907,10 +696,10 @@ export default function OrdersPage() {
         <Box
           sx={{
             display: 'flex',
+            alignItems: 'flex-start',
             gap: 2,
             overflowX: 'auto',
-            pb: 2,
-            minHeight: 'calc(100vh - 250px)'
+            pb: 2
           }}
         >
           {stages.map(stage => (
@@ -919,6 +708,10 @@ export default function OrdersPage() {
               stage={stage}
               orders={ordersByStage[stage.id] || []}
               onCardClick={handleCardClick}
+              onAddOrder={stageId => {
+                setCreateStageId(stageId)
+                setCreateOpen(true)
+              }}
               users={users}
             />
           ))}
@@ -933,7 +726,9 @@ export default function OrdersPage() {
         onClose={() => setCreateOpen(false)}
         onCreated={refetchOrders}
         stages={stages}
+        users={users}
         companyId={companyId}
+        initialStageId={createStageId}
       />
 
       {/* Order Detail Modal */}
