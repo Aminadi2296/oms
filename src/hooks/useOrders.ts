@@ -22,8 +22,10 @@ export function useOrders(filters?: { clientId?: number; stageId?: number; assig
     if (!session?.accessToken) return
     setLoading(true)
     setError(null)
+
     try {
       const params = new URLSearchParams()
+
       if (filters?.clientId) params.set('client_id', String(filters.clientId))
       if (filters?.stageId) params.set('stage_id', String(filters.stageId))
       if (filters?.assignedUserId) params.set('assigned_user_id', String(filters.assignedUserId))

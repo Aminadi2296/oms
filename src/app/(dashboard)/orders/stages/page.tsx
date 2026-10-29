@@ -2,6 +2,8 @@
 
 import React, { useState } from 'react'
 
+import { useRouter } from 'next/navigation'
+
 import {
   Box,
   Typography,
@@ -24,7 +26,6 @@ import EditIcon from '@mui/icons-material/Edit'
 import CheckIcon from '@mui/icons-material/Check'
 import CloseIcon from '@mui/icons-material/Close'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
-import { useRouter } from 'next/navigation'
 
 import { useCompanyStages } from '@/hooks/useCompanyStages'
 import { useApi } from '@/hooks/useApi'
@@ -48,6 +49,7 @@ const StagesPage = () => {
   const handleAdd = async () => {
     if (!newName.trim() || !companyId) return
     setAdding(true)
+
     try {
       await fetchApi(`companies/${companyId}/stages`, {
         method: 'POST',
@@ -67,6 +69,7 @@ const StagesPage = () => {
   const handleDelete = async (stageId: number) => {
     if (!companyId) return
     if (!confirm('¿Estás seguro de borrar esta etapa? Solo se puede borrar si está vacía.')) return
+
     try {
       await fetchApi(`companies/${companyId}/stages/${stageId}?force=empty`, { method: 'DELETE' })
       showSuccess('Etapa borrada')
@@ -80,8 +83,10 @@ const StagesPage = () => {
     if (!companyId) return
     const index = stages.findIndex(s => s.id === stageId)
     const targetIndex = direction === 'up' ? index - 1 : index + 1
+
     if (targetIndex < 0 || targetIndex >= stages.length) return
     const targetStage = stages[targetIndex]
+
     try {
       await Promise.all([
         fetchApi(`companies/${companyId}/stages/${stageId}`, {
@@ -112,6 +117,7 @@ const StagesPage = () => {
 
   const handleSaveEdit = async () => {
     if (!companyId || editingId === null || !editingName.trim()) return
+
     try {
       await fetchApi(`companies/${companyId}/stages/${editingId}`, {
         method: 'PUT',

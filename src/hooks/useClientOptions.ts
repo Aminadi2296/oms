@@ -23,6 +23,7 @@ export function useClientOptions(query: string, enabled: boolean, perPage = 10) 
 
     const run = async () => {
       setLoading(true)
+
       try {
         const q = query.trim()
 

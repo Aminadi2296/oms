@@ -19,9 +19,11 @@ export function useCompanyUsers(companyId: number | null) {
     if (!companyId) return
     setLoading(true)
     setError(null)
+
     try {
       const raw = await fetchApi<any>(`companies/${companyId}/users`)
       const list: CompanyUser[] = Array.isArray(raw) ? raw : (raw?.users ?? raw?.data ?? [])
+
       setUsers(list)
     } catch (err: any) {
       setError(err?.message || 'Error al cargar usuarios')

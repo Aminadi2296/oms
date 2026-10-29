@@ -28,6 +28,7 @@ export function useCompanyStages() {
       fetchApi<any>('auth/me')
         .then(me => {
           const id = me?.company_id ?? me?.companyId
+
           if (id) setCompanyId(Number(id))
         })
         .catch(() => {})
@@ -38,9 +39,11 @@ export function useCompanyStages() {
     if (!companyId) return
     setLoading(true)
     setError(null)
+
     try {
       const data = await fetchApi<CompanyStage[] | { stages: CompanyStage[] }>(`companies/${companyId}/stages`)
       const list = Array.isArray(data) ? data : ((data as any)?.stages ?? (data as any)?.data ?? [])
+
       // Sort by position
       list.sort((a: CompanyStage, b: CompanyStage) => a.position - b.position)
       setStages(list)

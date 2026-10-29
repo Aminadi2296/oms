@@ -1,7 +1,9 @@
 'use client'
 
 import React, { useState } from 'react'
+
 import { useRouter } from 'next/navigation'
+
 import {
   Box,
   Typography,
@@ -18,6 +20,7 @@ import {
   StepLabel,
   Divider
 } from '@mui/material'
+
 import { ROUTES } from '@/constants/routes'
 import { useSnackbar } from '@/hooks/useSnackbar'
 import { useApi } from '@/hooks/useApi'
@@ -59,6 +62,7 @@ export default function ClientCreatePage() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | { name?: string; value: unknown }>) => {
     const { name, value } = e.target
+
     setFormData(prev => ({ ...prev, [name as string]: value }))
   }
 
@@ -69,6 +73,7 @@ export default function ClientCreatePage() {
     if (!formData.razonSocial?.trim()) {
       showError('La Razón Social es requerida')
       setActiveStep(0)
+
       return
     }
 

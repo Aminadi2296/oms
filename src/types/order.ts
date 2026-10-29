@@ -45,6 +45,7 @@ export interface CompanyUser {
   full_name: string
   email: string
   role: string
+
   // Optional profile picture (whichever field the API returns)
   avatar_url?: string | null
   photo_url?: string | null

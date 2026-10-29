@@ -47,6 +47,7 @@ export interface CreateOrderDialogProps {
   stages: CompanyStage[]
   users: CompanyUser[]
   companyId: number | null
+
   /** Stage preselected when the dialog is opened from a column's "Agregar pedido" button */
   initialStageId?: number | null
 }
@@ -129,6 +130,7 @@ export default function CreateOrderDialog({
     }
 
     setSavingCategory(true)
+
     try {
       const created = await createCategory(name)
 
@@ -146,6 +148,7 @@ export default function CreateOrderDialog({
   const handleCreate = async () => {
     if (!companyId) return
     setSubmitting(true)
+
     try {
       const body: Record<string, any> = {
         observaciones: form.observaciones.trim() || null,

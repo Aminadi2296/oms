@@ -20,6 +20,7 @@ export function useOrderCategories(companyId: number | null) {
     if (!companyId) return []
     setLoading(true)
     setError(null)
+
     try {
       const raw = await fetchApi<any>(`companies/${companyId}/categories`)
       const list: OrderCategory[] = Array.isArray(raw) ? raw : (raw?.categories ?? raw?.data ?? [])

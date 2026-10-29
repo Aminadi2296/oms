@@ -15,10 +15,10 @@ export const API_ROUTES = {
   },
   CLIENTS: {
     LIST: 'clients',
-    GET: (id: string | number) => 'clients/$id',
+    GET: () => 'clients/$id',
     SEARCH: 'clients/search',
-    UPDATE: (id: string | number) => 'clients/$id',
-    DELETE: (id: string | number) => 'clients/$id',
+    UPDATE: () => 'clients/$id',
+    DELETE: () => 'clients/$id',
     POST: 'clients',
     CREATE_BULK: 'clients/bulk-upload'
   },
@@ -45,6 +45,7 @@ export const ROUTES = {
     INDEX: '/clients',
     CREATE: '/clients/create',
     CREATE_BULK: '/clients/create-bulk',
+
     // Fixed placeholder to correctly interpolate the client id
     DETAIL: (id: string | number) => `/clients/${id}`
   },

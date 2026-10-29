@@ -1,6 +1,8 @@
 'use client'
 
-import React, { useState, useCallback, useMemo, useEffect } from 'react'
+import React, { useState, useCallback, useMemo } from 'react'
+
+import { useRouter } from 'next/navigation'
 
 import {
   Box,
@@ -28,7 +30,6 @@ import PersonOutlineIcon from '@mui/icons-material/PersonOutline'
 import AccessTimeIcon from '@mui/icons-material/AccessTime'
 import SubjectIcon from '@mui/icons-material/Subject'
 import ImageOutlinedIcon from '@mui/icons-material/ImageOutlined'
-import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 
 import {
@@ -394,16 +395,7 @@ interface OrderDetailModalProps {
   userRole?: string
 }
 
-function OrderDetailModal({
-  order,
-  open,
-  onClose,
-  onUpdated,
-  stages,
-  users,
-  companyId,
-  userRole
-}: OrderDetailModalProps) {
+function OrderDetailModal({ order, open, onClose, onUpdated, users, userRole }: OrderDetailModalProps) {
   const { fetchApi } = useApi()
   const { showSuccess, showError } = useSnackbar()
   const [saving, setSaving] = useState(false)
@@ -428,6 +420,7 @@ function OrderDetailModal({
   const handleSave = async () => {
     if (!order) return
     setSaving(true)
+
     try {
       const body: any = {
         observaciones: observaciones || null,
@@ -549,7 +542,7 @@ export default function OrdersPage() {
   const { fetchApi } = useApi()
   const { showSuccess, showError } = useSnackbar()
 
-  const { stages, loading: stagesLoading, companyId, refetch: refetchStages } = useCompanyStages()
+  const { stages, loading: stagesLoading, companyId } = useCompanyStages()
   const { orders, loading: ordersLoading, refetch: refetchOrders } = useOrders()
   const { users } = useCompanyUsers(companyId)
 
@@ -562,11 +555,13 @@ export default function OrdersPage() {
   // Group orders by stage
   const ordersByStage = useMemo(() => {
     const map: Record<number, Order[]> = {}
+
     stages.forEach(s => {
       map[s.id] = []
     })
     orders.forEach(o => {
       const stageId = o.current_stage_id
+
       if (stageId && map[stageId]) {
         map[stageId].push(o)
       } else if (stages.length > 0) {
@@ -574,6 +569,7 @@ export default function OrdersPage() {
         map[stages[0].id]?.push(o)
       }
     })
+
     return map
   }, [orders, stages])
 
@@ -587,6 +583,7 @@ export default function OrdersPage() {
     (event: DragStartEvent) => {
       const orderId = Number(String(event.active.id).replace('order-', ''))
       const order = orders.find(o => o.id === orderId) || null
+
       setActiveOrder(order)
     },
     [orders]
@@ -596,10 +593,12 @@ export default function OrdersPage() {
     async (event: DragEndEvent) => {
       setActiveOrder(null)
       const { active, over } = event
+
       if (!over) return
 
       const orderId = Number(String(active.id).replace('order-', ''))
       const order = orders.find(o => o.id === orderId)
+
       if (!order) return
 
       // Determine target stage
@@ -607,9 +606,11 @@ export default function OrdersPage() {
 
       // If dropped over another order card, find that order's stage
       const overIdStr = String(over.id)
+
       if (overIdStr.startsWith('order-')) {
         const overOrderId = Number(overIdStr.replace('order-', ''))
         const overOrder = orders.find(o => o.id === overOrderId)
+
         if (overOrder) targetStageId = overOrder.current_stage_id
       } else if (overIdStr.startsWith('stage-')) {
         targetStageId = Number(overIdStr.replace('stage-', ''))

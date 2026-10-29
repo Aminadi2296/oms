@@ -248,6 +248,7 @@ function OrdersPanel({ clientId }: { clientId: number }) {
         maxHeight: 520,
         overflowY: 'auto',
         pr: 0.5,
+
         // vertical timeline line
         '&::before': {
           content: '""',
