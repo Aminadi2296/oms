@@ -29,6 +29,7 @@ import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined'
 import { ROUTES } from '@/constants/routes'
 import { useOrders } from '@/hooks/useOrders'
 import { useCompanyStages } from '@/hooks/useCompanyStages'
+import { getPriorityMeta } from '@/utils/orderUi'
 
 // Shape of a client returned by the API (extend as needed)
 interface Client {
@@ -209,12 +210,12 @@ function OrdersPanel({ clientId }: { clientId: number }) {
   const { orders, loading } = useOrders({ clientId })
   const { stages } = useCompanyStages()
 
-  // Safety net: even if the API ignores the filter, only show this client's orders
+  // Only this client's orders
   const clientOrders = useMemo(
     () =>
       orders
-        .filter(o => Number(o.client_id) === clientId)
-        .sort((a, b) => new Date(b.fecha_creacion).getTime() - new Date(a.fecha_creacion).getTime()),
+        .filter(o => o.customerId === clientId)
+        .sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime()),
     [orders, clientId]
   )
 
@@ -248,7 +249,6 @@ function OrdersPanel({ clientId }: { clientId: number }) {
         maxHeight: 520,
         overflowY: 'auto',
         pr: 0.5,
-
         // vertical timeline line
         '&::before': {
           content: '""',
@@ -262,8 +262,9 @@ function OrdersPanel({ clientId }: { clientId: number }) {
       }}
     >
       {clientOrders.map(order => {
-        const stage = stages.find(s => s.id === order.current_stage_id)
-        const done = !!stage?.is_final
+        const stage = stages.find(s => s.id === order.stageId)
+        const priority = getPriorityMeta(order.priority)
+        const done = !!stage?.is_final || !!order.completedAt
 
         return (
           <Box key={order.id} sx={{ position: 'relative', mb: 1.5 }}>
@@ -298,10 +299,10 @@ function OrdersPanel({ clientId }: { clientId: number }) {
             >
               <Box sx={{ minWidth: 92 }}>
                 <Typography variant='subtitle2' sx={{ fontWeight: 700, lineHeight: 1.2 }}>
-                  {formatDate(order.fecha_creacion, false) ?? '—'}
+                  {formatDate(order.createdAt, false) ?? '—'}
                 </Typography>
                 <Typography variant='caption' color='text.disabled'>
-                  {order.fecha_creacion ? new Date(order.fecha_creacion).getFullYear() : ''}
+                  {order.createdAt ? new Date(order.createdAt).getFullYear() : ''}
                 </Typography>
               </Box>
 
@@ -309,26 +310,24 @@ function OrdersPanel({ clientId }: { clientId: number }) {
 
               <Box sx={{ flex: 1, minWidth: 140 }}>
                 <Typography variant='caption' color='text.disabled'>
-                  Pedido
+                  {order.orderNumber}
                 </Typography>
                 <Typography variant='body1' sx={{ fontWeight: 700, lineHeight: 1.2 }}>
-                  {order.numero}
+                  {order.title}
                 </Typography>
-                {order.observaciones && (
+                {order.description && (
                   <Typography variant='body2' color='text.secondary' noWrap sx={{ maxWidth: 360 }}>
-                    {order.observaciones}
+                    {order.description}
                   </Typography>
                 )}
               </Box>
 
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                {order.category_name && (
-                  <Chip
-                    size='small'
-                    label={order.category_name}
-                    sx={{ bgcolor: stringToColor(order.category_name, 60, 48), color: '#fff', fontWeight: 600 }}
-                  />
-                )}
+                <Chip
+                  size='small'
+                  label={priority.label}
+                  sx={{ bgcolor: priority.color, color: '#fff', fontWeight: 600 }}
+                />
                 {stage && (
                   <Chip size='small' variant='outlined' color={done ? 'success' : 'primary'} label={stage.name} />
                 )}
@@ -380,9 +379,9 @@ export default function ClientDetailPage() {
 
   // Order stats shown in the profile card
   const stats = useMemo(() => {
-    const mine = orders.filter(o => Number(o.client_id) === clientId)
+    const mine = orders.filter(o => o.customerId === clientId)
     const finalIds = new Set(stages.filter(s => s.is_final).map(s => s.id))
-    const finished = mine.filter(o => o.current_stage_id !== null && finalIds.has(o.current_stage_id)).length
+    const finished = mine.filter(o => !!o.completedAt || finalIds.has(o.stageId)).length
 
     return { active: mine.length - finished, finished }
   }, [orders, stages, clientId])
@@ -595,9 +594,7 @@ export default function ClientDetailPage() {
                 '& .Mui-selected': { bgcolor: 'background.paper', boxShadow: '0 1px 3px rgba(0,0,0,0.12)' }
               }}
             >
-              <Tab
-                label={`Pedidos${orders.length ? ` (${orders.filter(o => Number(o.client_id) === clientId).length})` : ''}`}
-              />
+              <Tab label={`Pedidos${orders.length ? ` (${orders.length})` : ''}`} />
               <Tab label='Facturación' />
             </Tabs>
 

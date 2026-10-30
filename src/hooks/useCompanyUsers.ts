@@ -6,7 +6,11 @@ import { useApi } from './useApi'
 import type { CompanyUser } from '@/types/order'
 
 /**
- * Fetches the list of employees of a company (for assignment selector).
+ * Members of the company that can be assigned to an order.
+ *
+ * TODO(equipo): the API does not expose a "list company users" endpoint yet, so for now the only
+ * assignable person is the logged-in user (`auth/me`). When the backend adds something like
+ * `GET /companies/{id}/users`, replace the body of `fetchUsers` — nothing else needs to change.
  */
 export function useCompanyUsers(companyId: number | null) {
   const { fetchApi } = useApi()
@@ -16,22 +20,21 @@ export function useCompanyUsers(companyId: number | null) {
   const [error, setError] = useState<string | null>(null)
 
   const fetchUsers = useCallback(async () => {
-    if (!companyId) return
     setLoading(true)
     setError(null)
-
     try {
-      const raw = await fetchApi<any>(`companies/${companyId}/users`)
-      const list: CompanyUser[] = Array.isArray(raw) ? raw : (raw?.users ?? raw?.data ?? [])
+      const me = await fetchApi<any>('auth/me')
 
-      setUsers(list)
+      setUsers(
+        me?.id ? [{ id: me.id, full_name: me.full_name, email: me.email, role: me.role, is_active: me.is_active }] : []
+      )
     } catch (err: any) {
       setError(err?.message || 'Error al cargar usuarios')
       setUsers([])
     } finally {
       setLoading(false)
     }
-  }, [companyId, fetchApi])
+  }, [fetchApi])
 
   useEffect(() => {
     if (companyId) fetchUsers()

@@ -2,6 +2,8 @@
 
 import React, { useEffect, useState } from 'react'
 
+import Link from 'next/link'
+
 import {
   Autocomplete,
   Avatar,
@@ -21,24 +23,24 @@ import {
   TextField,
   Typography
 } from '@mui/material'
-import AddIcon from '@mui/icons-material/Add'
 import CloseIcon from '@mui/icons-material/Close'
 
+import { ROUTES } from '@/constants/routes'
 import { useApi } from '@/hooks/useApi'
 import { useClientOptions } from '@/hooks/useClientOptions'
 import { useDebounce } from '@/hooks/useDebounce'
-import { useOrderCategories } from '@/hooks/useOrderCategories'
 import { useSnackbar } from '@/hooks/useSnackbar'
 import type { Client } from '@/types/client'
-import type { CompanyStage, CompanyUser } from '@/types/order'
+import type { CompanyStage, CompanyUser, OrderPriority } from '@/types/order'
 import {
-  getCategoryAccent,
+  dateInputToISO,
   getClientName,
   getClientTaxId,
   getInitials,
   getUserAvatarUrl,
   stringToColor
 } from '@/utils/orderUi'
+import PriorityPicker from './PriorityPicker'
 
 export interface CreateOrderDialogProps {
   open: boolean
@@ -46,26 +48,28 @@ export interface CreateOrderDialogProps {
   onCreated: () => void
   stages: CompanyStage[]
   users: CompanyUser[]
-  companyId: number | null
-
-  /** Stage preselected when the dialog is opened from a column's "Agregar pedido" button */
+  /** Stage preselected when opened from a column's "Agregar pedido" button */
   initialStageId?: number | null
+  /** Position that puts a new order at the bottom of a stage */
+  getNextPosition: (stageId: number) => number
 }
 
 interface FormState {
-  categoria_id: string
-  assigned_user_id: string
-  current_stage_id: string
-  observaciones: string
-  notes: string
+  title: string
+  description: string
+  priority: OrderPriority
+  deadline: string // YYYY-MM-DD
+  stageId: string
+  assignedToId: string
 }
 
 const emptyForm = (stageId?: number | null): FormState => ({
-  categoria_id: '',
-  assigned_user_id: '',
-  current_stage_id: stageId ? String(stageId) : '',
-  observaciones: '',
-  notes: ''
+  title: '',
+  description: '',
+  priority: 'MEDIUM',
+  deadline: '',
+  stageId: stageId ? String(stageId) : '',
+  assignedToId: ''
 })
 
 const sectionLabelSx = {
@@ -83,26 +87,21 @@ export default function CreateOrderDialog({
   onCreated,
   stages,
   users,
-  companyId,
-  initialStageId
+  initialStageId,
+  getNextPosition
 }: CreateOrderDialogProps) {
   const { fetchApi } = useApi()
   const { showSuccess, showError } = useSnackbar()
-  const { categories, loading: categoriesLoading, createCategory } = useOrderCategories(companyId)
 
   const [form, setForm] = useState<FormState>(emptyForm(initialStageId ?? stages[0]?.id))
   const [client, setClient] = useState<Client | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [attempted, setAttempted] = useState(false)
 
   // Client autocomplete (server-side search)
   const [clientQuery, setClientQuery] = useState('')
   const debouncedQuery = useDebounce(clientQuery, 300)
   const { options: clientOptions, loading: clientsLoading } = useClientOptions(debouncedQuery, open)
-
-  // Inline category creation
-  const [addingCategory, setAddingCategory] = useState(false)
-  const [newCategoryName, setNewCategoryName] = useState('')
-  const [savingCategory, setSavingCategory] = useState(false)
 
   // Fresh form every time the dialog opens
   useEffect(() => {
@@ -110,57 +109,36 @@ export default function CreateOrderDialog({
     setForm(emptyForm(initialStageId ?? stages[0]?.id))
     setClient(null)
     setClientQuery('')
-    setAddingCategory(false)
-    setNewCategoryName('')
+    setAttempted(false)
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initialStageId])
 
   const setField = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm(f => ({ ...f, [key]: value }))
 
-  const handleAddCategory = async () => {
-    const name = newCategoryName.trim()
-
-    if (!name) return
-
-    if (categories.some(c => c.name.trim().toLowerCase() === name.toLowerCase())) {
-      showError('Ya existe una categoría con ese nombre')
-
-      return
-    }
-
-    setSavingCategory(true)
-
-    try {
-      const created = await createCategory(name)
-
-      if (created) setField('categoria_id', String(created.id))
-      showSuccess('Categoría creada')
-      setNewCategoryName('')
-      setAddingCategory(false)
-    } catch (err: any) {
-      showError(err?.message || 'Error al crear categoría')
-    } finally {
-      setSavingCategory(false)
-    }
-  }
+  const stageId = form.stageId ? Number(form.stageId) : (stages[0]?.id ?? null)
+  const titleError = attempted && !form.title.trim()
+  const clientError = attempted && !client
 
   const handleCreate = async () => {
-    if (!companyId) return
+    setAttempted(true)
+    if (!form.title.trim() || !client || !stageId) return
+
     setSubmitting(true)
-
     try {
-      const body: Record<string, any> = {
-        observaciones: form.observaciones.trim() || null,
-        notes: form.notes.trim() || null,
-        current_stage_id: form.current_stage_id ? Number(form.current_stage_id) : (stages[0]?.id ?? null)
-      }
-
-      if (client) body.client_id = client.id
-      if (form.categoria_id) body.categoria_id = Number(form.categoria_id)
-      if (form.assigned_user_id) body.assigned_user_id = Number(form.assigned_user_id)
-
-      await fetchApi('orders', { method: 'POST', body })
+      await fetchApi('orders', {
+        method: 'POST',
+        body: {
+          title: form.title.trim(),
+          description: form.description.trim() || null,
+          customerId: client.id,
+          stageId,
+          assignedToId: form.assignedToId ? Number(form.assignedToId) : null,
+          priority: form.priority,
+          deadline: form.deadline ? dateInputToISO(form.deadline) : null,
+          position: getNextPosition(stageId)
+        }
+      })
       showSuccess('Pedido creado exitosamente')
       onCreated()
       onClose()
@@ -182,7 +160,6 @@ export default function CreateOrderDialog({
       maxWidth='sm'
       PaperProps={{ sx: { borderRadius: 3 } }}
     >
-      {/* Header */}
       <DialogTitle sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', pb: 1 }}>
         <Box>
           <Typography variant='h5' sx={{ fontWeight: 700 }}>
@@ -198,10 +175,27 @@ export default function CreateOrderDialog({
       </DialogTitle>
 
       <DialogContent dividers sx={{ display: 'flex', flexDirection: 'column', gap: 3, py: 3 }}>
+        {/* Title */}
+        <Box>
+          <Typography variant='caption' sx={sectionLabelSx}>
+            Título *
+          </Typography>
+          <TextField
+            autoFocus
+            fullWidth
+            placeholder='Ej: Cotización de póliza colectiva'
+            value={form.title}
+            onChange={e => setField('title', e.target.value)}
+            error={titleError}
+            helperText={titleError ? 'El título es obligatorio' : undefined}
+            inputProps={{ maxLength: 255 }}
+          />
+        </Box>
+
         {/* Client */}
         <Box>
           <Typography variant='caption' sx={sectionLabelSx}>
-            Cliente
+            Cliente *
           </Typography>
           <Autocomplete
             value={client}
@@ -213,11 +207,21 @@ export default function CreateOrderDialog({
               if (reason === 'clear') setClientQuery('')
             }}
             onClose={() => setClientQuery('')}
-            // Filtering is done by the API
-            filterOptions={x => x}
+            filterOptions={x => x} // filtering is done by the API
             getOptionLabel={o => getClientName(o)}
             isOptionEqualToValue={(a, b) => a.id === b.id}
-            noOptionsText={clientQuery.trim() ? 'No se encontraron clientes' : 'No hay clientes registrados'}
+            noOptionsText={
+              clientQuery.trim() ? (
+                'No se encontraron clientes'
+              ) : (
+                <>
+                  Aún no hay clientes.{' '}
+                  <Link href={ROUTES.CLIENTS.CREATE} style={{ color: 'inherit', fontWeight: 600 }}>
+                    Crear uno
+                  </Link>
+                </>
+              )
+            }
             loadingText='Buscando clientes...'
             clearText='Quitar cliente'
             openText='Abrir'
@@ -249,7 +253,8 @@ export default function CreateOrderDialog({
               <TextField
                 {...params}
                 placeholder='Busca por razón social o número fiscal'
-                helperText='Opcional'
+                error={clientError}
+                helperText={clientError ? 'Selecciona un cliente' : undefined}
                 InputProps={{
                   ...params.InputProps,
                   endAdornment: (
@@ -264,149 +269,37 @@ export default function CreateOrderDialog({
           />
         </Box>
 
-        {/* Category + assignee */}
-        <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' } }}>
+        {/* Priority + deadline */}
+        <Box sx={{ display: 'grid', gap: 2.5, gridTemplateColumns: { xs: '1fr', sm: '1.4fr 1fr' } }}>
           <Box>
             <Typography variant='caption' sx={sectionLabelSx}>
-              Categoría
+              Prioridad
             </Typography>
-            <FormControl fullWidth disabled={categoriesLoading}>
-              <Select
-                displayEmpty
-                value={form.categoria_id}
-                onChange={e => setField('categoria_id', e.target.value as string)}
-                renderValue={v => {
-                  const cat = categories.find(c => String(c.id) === v)
-
-                  if (!cat) return <Typography color='text.disabled'>Sin categoría</Typography>
-
-                  return (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: getCategoryAccent(cat.name) }} />
-                      {cat.name}
-                    </Box>
-                  )
-                }}
-              >
-                <MenuItem value=''>
-                  <Typography color='text.secondary'>Sin categoría</Typography>
-                </MenuItem>
-                {categories.map(c => (
-                  <MenuItem key={c.id} value={String(c.id)} sx={{ gap: 1 }}>
-                    <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: getCategoryAccent(c.name) }} />
-                    {c.name}
-                  </MenuItem>
-                ))}
-              </Select>
-              {!categoriesLoading && categories.length === 0 && (
-                <FormHelperText>Aún no hay categorías creadas</FormHelperText>
-              )}
-            </FormControl>
-
-            {addingCategory ? (
-              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mt: 1 }}>
-                <TextField
-                  autoFocus
-                  size='small'
-                  placeholder='Nombre de la categoría'
-                  value={newCategoryName}
-                  onChange={e => setNewCategoryName(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      handleAddCategory()
-                    }
-
-                    if (e.key === 'Escape') {
-                      e.stopPropagation()
-                      setAddingCategory(false)
-                      setNewCategoryName('')
-                    }
-                  }}
-                  disabled={savingCategory}
-                  fullWidth
-                />
-                <Button
-                  variant='contained'
-                  size='small'
-                  onClick={handleAddCategory}
-                  disabled={savingCategory || !newCategoryName.trim()}
-                  sx={{ minWidth: 80 }}
-                >
-                  {savingCategory ? <CircularProgress size={18} /> : 'Crear'}
-                </Button>
-                <IconButton
-                  size='small'
-                  aria-label='Cancelar'
-                  disabled={savingCategory}
-                  onClick={() => {
-                    setAddingCategory(false)
-                    setNewCategoryName('')
-                  }}
-                >
-                  <CloseIcon fontSize='small' />
-                </IconButton>
-              </Box>
-            ) : (
-              <Button size='small' startIcon={<AddIcon />} onClick={() => setAddingCategory(true)} sx={{ mt: 0.5 }}>
-                Nueva categoría
-              </Button>
-            )}
+            <PriorityPicker value={form.priority} onChange={v => setField('priority', v)} />
           </Box>
-
           <Box>
             <Typography variant='caption' sx={sectionLabelSx}>
-              Asignado a
+              Fecha límite
             </Typography>
-            <FormControl fullWidth>
-              <Select
-                displayEmpty
-                value={form.assigned_user_id}
-                onChange={e => setField('assigned_user_id', e.target.value as string)}
-                renderValue={v => {
-                  const u = users.find(x => String(x.id) === v)
-
-                  if (!u) return <Typography color='text.disabled'>Sin asignar</Typography>
-
-                  return (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Avatar src={getUserAvatarUrl(u)} alt={u.full_name} sx={{ width: 22, height: 22 }} />
-                      {u.full_name}
-                    </Box>
-                  )
-                }}
-              >
-                <MenuItem value=''>
-                  <Typography color='text.secondary'>Sin asignar</Typography>
-                </MenuItem>
-                {users.map(u => (
-                  <MenuItem key={u.id} value={String(u.id)} sx={{ gap: 1.25 }}>
-                    <Avatar src={getUserAvatarUrl(u)} alt={u.full_name} sx={{ width: 26, height: 26 }} />
-                    <Box sx={{ minWidth: 0 }}>
-                      <Typography variant='body2' noWrap sx={{ fontWeight: 600, lineHeight: 1.2 }}>
-                        {u.full_name}
-                      </Typography>
-                      {u.role && (
-                        <Typography variant='caption' color='text.secondary'>
-                          {u.role}
-                        </Typography>
-                      )}
-                    </Box>
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+            <TextField
+              type='date'
+              fullWidth
+              size='small'
+              value={form.deadline}
+              onChange={e => setField('deadline', e.target.value)}
+              helperText='Opcional'
+            />
           </Box>
         </Box>
 
-        {/* Initial stage */}
+        {/* Stage */}
         <Box>
           <Typography variant='caption' sx={sectionLabelSx}>
             Etapa inicial
           </Typography>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
             {stages.map(s => {
-              const selected = (form.current_stage_id || String(stages[0]?.id ?? '')) === String(s.id)
+              const selected = stageId === s.id
 
               return (
                 <Chip
@@ -415,7 +308,7 @@ export default function CreateOrderDialog({
                   clickable
                   color={selected ? 'primary' : 'default'}
                   variant={selected ? 'filled' : 'outlined'}
-                  onClick={() => setField('current_stage_id', String(s.id))}
+                  onClick={() => setField('stageId', String(s.id))}
                   sx={{ fontWeight: selected ? 700 : 500 }}
                 />
               )
@@ -423,36 +316,66 @@ export default function CreateOrderDialog({
           </Box>
         </Box>
 
-        {/* Texts */}
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <Box>
-            <Typography variant='caption' sx={sectionLabelSx}>
-              Observaciones
-            </Typography>
-            <TextField
-              multiline
-              minRows={3}
-              maxRows={8}
-              fullWidth
-              placeholder='Detalles del pedido: qué se solicitó, condiciones, fechas...'
-              value={form.observaciones}
-              onChange={e => setField('observaciones', e.target.value)}
-            />
-          </Box>
-          <Box>
-            <Typography variant='caption' sx={sectionLabelSx}>
-              Notas internas
-            </Typography>
-            <TextField
-              multiline
-              minRows={2}
-              maxRows={6}
-              fullWidth
-              placeholder='Notas para el equipo (opcional)'
-              value={form.notes}
-              onChange={e => setField('notes', e.target.value)}
-            />
-          </Box>
+        {/* Assignee */}
+        <Box>
+          <Typography variant='caption' sx={sectionLabelSx}>
+            Asignado a
+          </Typography>
+          <FormControl fullWidth>
+            <Select
+              displayEmpty
+              value={form.assignedToId}
+              onChange={e => setField('assignedToId', e.target.value as string)}
+              renderValue={v => {
+                const u = users.find(x => String(x.id) === v)
+
+                if (!u) return <Typography color='text.disabled'>Sin asignar</Typography>
+
+                return (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Avatar src={getUserAvatarUrl(u)} alt={u.full_name} sx={{ width: 22, height: 22 }} />
+                    {u.full_name}
+                  </Box>
+                )
+              }}
+            >
+              <MenuItem value=''>
+                <Typography color='text.secondary'>Sin asignar</Typography>
+              </MenuItem>
+              {users.map(u => (
+                <MenuItem key={u.id} value={String(u.id)} sx={{ gap: 1.25 }}>
+                  <Avatar src={getUserAvatarUrl(u)} alt={u.full_name} sx={{ width: 26, height: 26 }} />
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography variant='body2' noWrap sx={{ fontWeight: 600, lineHeight: 1.2 }}>
+                      {u.full_name}
+                    </Typography>
+                    <Typography variant='caption' color='text.secondary'>
+                      {u.email}
+                    </Typography>
+                  </Box>
+                </MenuItem>
+              ))}
+            </Select>
+            {users.length <= 1 && (
+              <FormHelperText>Cuando se sumen más personas al equipo podrás asignarles pedidos.</FormHelperText>
+            )}
+          </FormControl>
+        </Box>
+
+        {/* Description */}
+        <Box>
+          <Typography variant='caption' sx={sectionLabelSx}>
+            Descripción
+          </Typography>
+          <TextField
+            multiline
+            minRows={3}
+            maxRows={8}
+            fullWidth
+            placeholder='Detalles del pedido: qué se solicitó, condiciones, observaciones...'
+            value={form.description}
+            onChange={e => setField('description', e.target.value)}
+          />
         </Box>
       </DialogContent>
 
@@ -460,7 +383,12 @@ export default function CreateOrderDialog({
         <Button onClick={onClose} disabled={submitting} color='secondary'>
           Cancelar
         </Button>
-        <Button variant='contained' onClick={handleCreate} disabled={submitting || !companyId} sx={{ minWidth: 140 }}>
+        <Button
+          variant='contained'
+          onClick={handleCreate}
+          disabled={submitting || stages.length === 0}
+          sx={{ minWidth: 140 }}
+        >
           {submitting ? <CircularProgress size={20} color='inherit' /> : 'Crear pedido'}
         </Button>
       </DialogActions>

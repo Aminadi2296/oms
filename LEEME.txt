@@ -1,0 +1,21 @@
+MIGRACION DEL MODULO PEDIDOS AL CONTRATO REAL DE LA API
+Copia el contenido de esta carpeta sobre la raiz de tu proyecto (respeta las rutas).
+
+ARCHIVOS NUEVOS
+  src/hooks/useClientNames.ts
+  src/app/(dashboard)/orders/components/OrderDetailModal.tsx
+  src/app/(dashboard)/orders/components/PriorityPicker.tsx
+
+ARCHIVOS QUE REEMPLAZAN A LOS EXISTENTES
+  src/types/order.ts
+  src/utils/orderUi.ts
+  src/hooks/useOrders.ts
+  src/hooks/useCompanyUsers.ts
+  src/app/(dashboard)/orders/page.tsx
+  src/app/(dashboard)/orders/components/CreateOrderDialog.tsx
+  src/app/(dashboard)/clients/[id]/page.tsx
+
+ARCHIVO A BORRAR
+  src/hooks/useOrderCategories.ts   (la API no tiene categorias)
+
+NO CAMBIA: src/hooks/useClientOptions.ts (ya lo tienes de antes).

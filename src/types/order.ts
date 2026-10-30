@@ -1,4 +1,6 @@
-// ─── Company Stage (etapa configurable por empresa) ─────────────────────────
+// Types aligned with the OMS API (OpenAPI 0.1.0). Orders use camelCase; stages use snake_case.
+
+// ─── Company Stage (configurable workflow column per company) ───────────────
 export interface CompanyStage {
   id: number
   company_id: number
@@ -7,36 +9,28 @@ export interface CompanyStage {
   is_final: boolean
 }
 
-// ─── Order Category ─────────────────────────────────────────────────────────
-export interface OrderCategory {
-  id: number
-  company_id: number
-  name: string
-}
-
 // ─── Order (Pedido) ─────────────────────────────────────────────────────────
+export type OrderPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
+
 export interface Order {
   id: number
-  numero: string
-  client_id: number | null
-  company_id: number
-  fecha_creacion: string
-  observaciones: string | null
-  categoria_id: number | null
-  notes: string | null
-  photo_url: string | null
-  total: number | null
-  current_stage_id: number | null
-  assigned_user_id: number | null
+  companyId: number
+  orderNumber: string
+  title: string
+  description: string | null
+  customerId: number
+  stageId: number
+  assignedToId: number | null
+  priority: OrderPriority
+  deadline: string | null
+  position: number
+  createdAt: string | null
+  updatedAt: string | null
+  completedAt: string | null
 
-  // Populated relations (from API, may be absent)
-  client_name?: string
-  assigned_user_name?: string
-  stage_name?: string
-  category_name?: string
-
-  // camelCase alternatives from API (normalised on fetch)
-  [key: string]: any
+  // Derived on the client (the API does not return names)
+  customerName?: string
+  assignedToName?: string
 }
 
 // ─── Compact user (for assignment dropdown) ─────────────────────────────────
@@ -45,7 +39,7 @@ export interface CompanyUser {
   full_name: string
   email: string
   role: string
-
+  is_active?: boolean
   // Optional profile picture (whichever field the API returns)
   avatar_url?: string | null
   photo_url?: string | null

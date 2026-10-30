@@ -4,33 +4,12 @@ import React, { useState, useCallback, useMemo } from 'react'
 
 import { useRouter } from 'next/navigation'
 
-import {
-  Box,
-  Typography,
-  Button,
-  Paper,
-  CircularProgress,
-  Chip,
-  Avatar,
-  Collapse,
-  Tooltip,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  MenuItem,
-  Select,
-  InputLabel,
-  FormControl
-} from '@mui/material'
+import { Box, Typography, Button, Paper, CircularProgress, Chip, Avatar, Collapse, Tooltip } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import SettingsIcon from '@mui/icons-material/Settings'
 import PersonOutlineIcon from '@mui/icons-material/PersonOutline'
 import AccessTimeIcon from '@mui/icons-material/AccessTime'
 import SubjectIcon from '@mui/icons-material/Subject'
-import ImageOutlinedIcon from '@mui/icons-material/ImageOutlined'
-import { useSession } from 'next-auth/react'
 
 import {
   DndContext,
@@ -47,25 +26,28 @@ import {
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 
-import { useCompanyStages } from '@/hooks/useCompanyStages'
-import { useOrders } from '@/hooks/useOrders'
-import { useCompanyUsers } from '@/hooks/useCompanyUsers'
-import { useApi } from '@/hooks/useApi'
-import { useSnackbar } from '@/hooks/useSnackbar'
 import { ROUTES } from '@/constants/routes'
+import { useApi } from '@/hooks/useApi'
+import { useClientNames } from '@/hooks/useClientNames'
+import { useCompanyStages } from '@/hooks/useCompanyStages'
+import { useCompanyUsers } from '@/hooks/useCompanyUsers'
+import { useOrders } from '@/hooks/useOrders'
+import { useSnackbar } from '@/hooks/useSnackbar'
 import type { Order, CompanyStage, CompanyUser } from '@/types/order'
-import { getCategoryAccent, getInitials, getUserAvatarUrl, stringToColor } from '@/utils/orderUi'
+import {
+  POSITION_STEP,
+  completionPatch,
+  formatLongDate,
+  formatShortDate,
+  getInitials,
+  getPriorityMeta,
+  getUserAvatarUrl,
+  isOverdue,
+  positionBetween,
+  stringToColor
+} from '@/utils/orderUi'
 import CreateOrderDialog from './components/CreateOrderDialog'
-
-// ─────────────────────────── Helpers ────────────────────────────────────────
-function formatShortDate(date?: string | null) {
-  if (!date) return null
-  const d = new Date(date)
-
-  if (isNaN(d.getTime())) return null
-
-  return d.toLocaleDateString('es', { day: 'numeric', month: 'short' })
-}
+import OrderDetailModal from './components/OrderDetailModal'
 
 // ─────────────────────────── Assignee Avatar ────────────────────────────────
 function AssigneeAvatar({ user, size = 28 }: { user?: CompanyUser; size?: number }) {
@@ -140,11 +122,11 @@ function SortableOrderCard({ order, onClick, users }: OrderCardProps) {
     opacity: isDragging ? 0.35 : 1
   }
 
-  const assignedUser = users.find(u => u.id === order.assigned_user_id)
-  const dateLabel = formatShortDate(order.fecha_creacion)
-  const accent = getCategoryAccent(order.category_name)
+  const assignedUser = users.find(u => u.id === order.assignedToId)
+  const priority = getPriorityMeta(order.priority)
+  const overdue = isOverdue(order.deadline, order.completedAt)
+  const deadlineLabel = formatShortDate(order.deadline)
   const expanded = hovered && !isDragging
-  const hasDetails = !!(order.category_name || order.observaciones || order.notes)
 
   return (
     <Paper
@@ -158,7 +140,7 @@ function SortableOrderCard({ order, onClick, users }: OrderCardProps) {
       onClick={() => onClick(order)}
       sx={{
         ...cardBaseSx,
-        borderLeftColor: accent,
+        borderLeftColor: priority.color,
         cursor: 'pointer',
         touchAction: 'manipulation',
         transition: 'box-shadow 0.15s ease',
@@ -167,36 +149,42 @@ function SortableOrderCard({ order, onClick, users }: OrderCardProps) {
         '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: 2 }
       }}
     >
-      {/* Title + client */}
-      <Typography variant='body2' sx={{ fontWeight: 600, lineHeight: 1.35 }}>
-        {order.numero}
+      {/* Order number */}
+      <Typography variant='caption' color='text.disabled' sx={{ fontWeight: 600, letterSpacing: 0.3 }}>
+        {order.orderNumber}
       </Typography>
+
+      {/* Title + client */}
       <Typography
         variant='body2'
-        noWrap
         sx={{
-          color: order.client_name ? 'text.secondary' : 'text.disabled',
-          fontStyle: order.client_name ? 'normal' : 'italic'
+          fontWeight: 600,
+          lineHeight: 1.35,
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden'
         }}
       >
-        {order.client_name || 'Sin cliente'}
+        {order.title}
+      </Typography>
+      <Typography variant='body2' color='text.secondary' noWrap>
+        {order.customerName || `Cliente #${order.customerId}`}
       </Typography>
 
       {/* Details revealed on hover */}
-      <Collapse in={expanded && hasDetails} timeout={180} unmountOnExit>
+      <Collapse in={expanded} timeout={180} unmountOnExit>
         <Box sx={{ mt: 1, pt: 1, borderTop: '1px dashed', borderColor: 'divider', display: 'grid', gap: 1 }}>
-          {order.category_name && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-              <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: accent, flexShrink: 0 }} />
-              <Typography variant='caption' sx={{ fontWeight: 600 }}>
-                {order.category_name}
-              </Typography>
-            </Box>
-          )}
-          {order.observaciones && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+            <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: priority.color, flexShrink: 0 }} />
+            <Typography variant='caption' sx={{ fontWeight: 600 }}>
+              Prioridad {priority.label.toLowerCase()}
+            </Typography>
+          </Box>
+          {order.description && (
             <Box>
               <Typography variant='caption' color='text.disabled' sx={labelSx}>
-                Observaciones
+                Descripción
               </Typography>
               <Typography
                 variant='body2'
@@ -208,50 +196,34 @@ function SortableOrderCard({ order, onClick, users }: OrderCardProps) {
                   whiteSpace: 'pre-line'
                 }}
               >
-                {order.observaciones}
+                {order.description}
               </Typography>
             </Box>
           )}
-          {order.notes && (
-            <Box>
-              <Typography variant='caption' color='text.disabled' sx={labelSx}>
-                Notas
-              </Typography>
-              <Typography
-                variant='body2'
-                color='text.secondary'
-                sx={{
-                  display: '-webkit-box',
-                  WebkitLineClamp: 3,
-                  WebkitBoxOrient: 'vertical',
-                  overflow: 'hidden',
-                  whiteSpace: 'pre-line'
-                }}
-              >
-                {order.notes}
-              </Typography>
-            </Box>
-          )}
+          <Typography variant='caption' color='text.secondary'>
+            Creado el {formatLongDate(order.createdAt) ?? '—'}
+          </Typography>
         </Box>
       </Collapse>
 
-      {/* Footer: date + indicators (left), assignee (right) */}
+      {/* Footer: deadline + indicators (left), assignee (right) */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 1.25 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, color: 'text.secondary' }}>
-          {dateLabel && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <AccessTimeIcon sx={{ fontSize: 14 }} />
-              <Typography variant='caption'>{dateLabel}</Typography>
-            </Box>
-          )}
-          {(order.observaciones || order.notes) && (
-            <Tooltip title='Tiene observaciones o notas'>
-              <SubjectIcon sx={{ fontSize: 15 }} />
+        <Box
+          sx={{ display: 'flex', alignItems: 'center', gap: 1.25, color: overdue ? 'error.main' : 'text.secondary' }}
+        >
+          {deadlineLabel && (
+            <Tooltip title={overdue ? 'Vencido' : 'Fecha límite'}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <AccessTimeIcon sx={{ fontSize: 14 }} />
+                <Typography variant='caption' sx={{ fontWeight: overdue ? 700 : 400 }}>
+                  {deadlineLabel}
+                </Typography>
+              </Box>
             </Tooltip>
           )}
-          {order.photo_url && (
-            <Tooltip title='Tiene foto adjunta'>
-              <ImageOutlinedIcon sx={{ fontSize: 15 }} />
+          {order.description && (
+            <Tooltip title='Tiene descripción'>
+              <SubjectIcon sx={{ fontSize: 15, color: 'text.secondary' }} />
             </Tooltip>
           )}
         </Box>
@@ -271,26 +243,26 @@ function SortableOrderCard({ order, onClick, users }: OrderCardProps) {
 
 // Simple card for drag overlay (no sortable hooks)
 function OrderCardOverlay({ order, users }: { order: Order; users: CompanyUser[] }) {
-  const assignedUser = users.find(u => u.id === order.assigned_user_id)
+  const assignedUser = users.find(u => u.id === order.assignedToId)
 
   return (
     <Paper
       elevation={0}
       sx={{
         ...cardBaseSx,
-        borderLeftColor: getCategoryAccent(order.category_name),
+        borderLeftColor: getPriorityMeta(order.priority).color,
         width: 280,
         cursor: 'grabbing',
         boxShadow: '0 14px 30px rgba(0,0,0,0.30)',
         transform: 'rotate(2.5deg)'
       }}
     >
-      <Typography variant='body2' sx={{ fontWeight: 600 }}>
-        {order.numero}
+      <Typography variant='body2' sx={{ fontWeight: 600 }} noWrap>
+        {order.title}
       </Typography>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 0.25 }}>
         <Typography variant='body2' color='text.secondary' noWrap>
-          {order.client_name || 'Sin cliente'}
+          {order.customerName || `Cliente #${order.customerId}`}
         </Typography>
         <AssigneeAvatar user={assignedUser} size={24} />
       </Box>
@@ -383,176 +355,40 @@ function StageColumn({ stage, orders, onCardClick, onAddOrder, users }: StageCol
   )
 }
 
-// ─────────────────────────── Order Detail Modal ─────────────────────────────
-interface OrderDetailModalProps {
-  order: Order | null
-  open: boolean
-  onClose: () => void
-  onUpdated: () => void
-  stages: CompanyStage[]
-  users: CompanyUser[]
-  companyId: number | null
-  userRole?: string
-}
-
-function OrderDetailModal({ order, open, onClose, onUpdated, users, userRole }: OrderDetailModalProps) {
-  const { fetchApi } = useApi()
-  const { showSuccess, showError } = useSnackbar()
-  const [saving, setSaving] = useState(false)
-
-  const [observaciones, setObservaciones] = useState('')
-  const [notes, setNotes] = useState('')
-  const [assignedUserId, setAssignedUserId] = useState<string>('')
-  const [total, setTotal] = useState<string>('')
-
-  // Sync local state when order changes
-  React.useEffect(() => {
-    if (order) {
-      setObservaciones(order.observaciones || '')
-      setNotes(order.notes || '')
-      setAssignedUserId(order.assigned_user_id?.toString() || '')
-      setTotal(order.total?.toString() || '')
-    }
-  }, [order])
-
-  const isAdmin = userRole === 'superadmin' || userRole === 'adminCompany'
-
-  const handleSave = async () => {
-    if (!order) return
-    setSaving(true)
-
-    try {
-      const body: any = {
-        observaciones: observaciones || null,
-        notes: notes || null
-      }
-
-      if (isAdmin && total) {
-        body.total = parseFloat(total)
-      }
-
-      await fetchApi(`orders/${order.id}`, { method: 'PATCH', body })
-
-      // Handle assignment separately
-      if (assignedUserId !== (order.assigned_user_id?.toString() || '')) {
-        if (assignedUserId) {
-          await fetchApi(`orders/${order.id}/assign`, { method: 'POST', body: { user_id: Number(assignedUserId) } })
-        }
-      }
-
-      showSuccess('Pedido actualizado')
-      onUpdated()
-      onClose()
-    } catch (err: any) {
-      showError(err?.message || 'Error al actualizar pedido')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  if (!order) return null
-
-  return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth='sm'>
-      <DialogTitle sx={{ fontWeight: 700 }}>Pedido {order.numero}</DialogTitle>
-      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
-        <Typography variant='body2' color='text.secondary'>
-          Fecha de creación: {order.fecha_creacion ? new Date(order.fecha_creacion).toLocaleDateString('es') : '-'}
-        </Typography>
-
-        {order.client_name && (
-          <Typography variant='body2'>
-            <strong>Cliente:</strong> {order.client_name}
-          </Typography>
-        )}
-
-        <TextField
-          label='Observaciones'
-          multiline
-          rows={3}
-          value={observaciones}
-          onChange={e => setObservaciones(e.target.value)}
-          fullWidth
-          margin='dense'
-        />
-
-        <TextField
-          label='Notas'
-          multiline
-          rows={3}
-          value={notes}
-          onChange={e => setNotes(e.target.value)}
-          fullWidth
-          margin='dense'
-        />
-
-        <FormControl fullWidth margin='dense'>
-          <InputLabel>Asignar a</InputLabel>
-          <Select value={assignedUserId} label='Asignar a' onChange={e => setAssignedUserId(e.target.value as string)}>
-            <MenuItem value=''>Sin asignar</MenuItem>
-            {users.map(u => (
-              <MenuItem key={u.id} value={u.id.toString()}>
-                {u.full_name} ({u.email})
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-
-        {isAdmin && (
-          <TextField
-            label='Total (admin)'
-            type='number'
-            value={total}
-            onChange={e => setTotal(e.target.value)}
-            fullWidth
-            margin='dense'
-          />
-        )}
-
-        {order.photo_url && (
-          <Box>
-            <Typography variant='caption' color='text.secondary'>
-              Foto adjunta:
-            </Typography>
-            <Box
-              component='img'
-              src={order.photo_url}
-              alt='Foto del pedido'
-              sx={{ maxWidth: '100%', maxHeight: 200, mt: 1, borderRadius: 1 }}
-            />
-          </Box>
-        )}
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose} disabled={saving}>
-          Cancelar
-        </Button>
-        <Button variant='contained' onClick={handleSave} disabled={saving}>
-          {saving ? <CircularProgress size={20} /> : 'Guardar'}
-        </Button>
-      </DialogActions>
-    </Dialog>
-  )
-}
-
 // ─────────────────────────── Main Board ─────────────────────────────────────
 export default function OrdersPage() {
   const router = useRouter()
-  const { data: session } = useSession()
   const { fetchApi } = useApi()
-  const { showSuccess, showError } = useSnackbar()
+  const { showError } = useSnackbar()
 
   const { stages, loading: stagesLoading, companyId } = useCompanyStages()
-  const { orders, loading: ordersLoading, refetch: refetchOrders } = useOrders()
+  const { orders: rawOrders, setOrders, loading: ordersLoading, refetch: refetchOrders } = useOrders()
   const { users } = useCompanyUsers(companyId)
+  const { names: clientNames } = useClientNames()
 
   const [activeOrder, setActiveOrder] = useState<Order | null>(null)
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
-  const [detailOpen, setDetailOpen] = useState(false)
+  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [createStageId, setCreateStageId] = useState<number | null>(null)
 
-  // Group orders by stage
+  // The API returns ids only: attach customer / assignee names for display
+  const orders = useMemo<Order[]>(
+    () =>
+      rawOrders.map(o => ({
+        ...o,
+        customerName: clientNames[o.customerId],
+        assignedToName: users.find(u => u.id === o.assignedToId)?.full_name
+      })),
+    [rawOrders, clientNames, users]
+  )
+
+  // Stage an order is displayed in (orders with an unknown stage fall back to the first column)
+  const stageIdOf = useCallback(
+    (o: Order) => (stages.some(s => s.id === o.stageId) ? o.stageId : (stages[0]?.id ?? o.stageId)),
+    [stages]
+  )
+
+  // Group + sort orders by stage
   const ordersByStage = useMemo(() => {
     const map: Record<number, Order[]> = {}
 
@@ -560,18 +396,28 @@ export default function OrdersPage() {
       map[s.id] = []
     })
     orders.forEach(o => {
-      const stageId = o.current_stage_id
-
-      if (stageId && map[stageId]) {
-        map[stageId].push(o)
-      } else if (stages.length > 0) {
-        // Orders without a valid stage go to the first column
-        map[stages[0].id]?.push(o)
-      }
+      map[stageIdOf(o)]?.push(o)
     })
+    Object.values(map).forEach(list =>
+      list.sort(
+        (a, b) => a.position - b.position || new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime()
+      )
+    )
 
     return map
-  }, [orders, stages])
+  }, [orders, stages, stageIdOf])
+
+  const selectedOrder = useMemo(() => orders.find(o => o.id === selectedOrderId) ?? null, [orders, selectedOrderId])
+
+  // New orders go to the bottom of their column
+  const getNextPosition = useCallback(
+    (stageId: number) => {
+      const list = ordersByStage[stageId] ?? []
+
+      return list.length ? Math.max(...list.map(o => o.position)) + POSITION_STEP : POSITION_STEP
+    },
+    [ordersByStage]
+  )
 
   // DnD sensors
   const sensors = useSensors(
@@ -582,9 +428,8 @@ export default function OrdersPage() {
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {
       const orderId = Number(String(event.active.id).replace('order-', ''))
-      const order = orders.find(o => o.id === orderId) || null
 
-      setActiveOrder(order)
+      setActiveOrder(orders.find(o => o.id === orderId) || null)
     },
     [orders]
   )
@@ -596,47 +441,86 @@ export default function OrdersPage() {
 
       if (!over) return
 
-      const orderId = Number(String(active.id).replace('order-', ''))
-      const order = orders.find(o => o.id === orderId)
+      const order = orders.find(o => o.id === Number(String(active.id).replace('order-', '')))
 
       if (!order) return
 
-      // Determine target stage
+      // Where was it dropped?
+      const overId = String(over.id)
+      let overOrder: Order | undefined
       let targetStageId: number | null = null
 
-      // If dropped over another order card, find that order's stage
-      const overIdStr = String(over.id)
-
-      if (overIdStr.startsWith('order-')) {
-        const overOrderId = Number(overIdStr.replace('order-', ''))
-        const overOrder = orders.find(o => o.id === overOrderId)
-
-        if (overOrder) targetStageId = overOrder.current_stage_id
-      } else if (overIdStr.startsWith('stage-')) {
-        targetStageId = Number(overIdStr.replace('stage-', ''))
+      if (overId.startsWith('order-')) {
+        overOrder = orders.find(o => o.id === Number(overId.replace('order-', '')))
+        targetStageId = overOrder ? stageIdOf(overOrder) : null
+      } else if (overId.startsWith('stage-')) {
+        targetStageId = Number(overId.replace('stage-', ''))
       }
 
-      if (!targetStageId || targetStageId === order.current_stage_id) return
+      if (!targetStageId || overOrder?.id === order.id) return
 
-      // Move order to the new stage
-      try {
-        await fetchApi(`orders/${orderId}/stage`, {
-          method: 'PATCH',
-          body: { stage_id: targetStageId }
+      const sourceStageId = stageIdOf(order)
+      const sourceList = ordersByStage[sourceStageId] ?? []
+      const targetList = (ordersByStage[targetStageId] ?? []).filter(o => o.id !== order.id)
+
+      // Index where the card lands inside the target column
+      let index = targetList.length
+
+      if (overOrder) {
+        const overIdx = targetList.findIndex(o => o.id === overOrder!.id)
+
+        if (overIdx >= 0) {
+          const movingDown =
+            sourceStageId === targetStageId &&
+            sourceList.findIndex(o => o.id === order.id) < sourceList.findIndex(o => o.id === overOrder!.id)
+
+          index = movingDown ? overIdx + 1 : overIdx
+        }
+      }
+
+      // Dropped exactly where it already was
+      if (sourceStageId === targetStageId && sourceList.findIndex(o => o.id === order.id) === index) return
+
+      const targetStage = stages.find(s => s.id === targetStageId)
+      const completion = sourceStageId !== targetStageId ? completionPatch(order, !!targetStage?.is_final) : {}
+
+      const updates: { id: number; body: Record<string, unknown> }[] = []
+      const pos = positionBetween(targetList[index - 1]?.position, targetList[index]?.position)
+
+      if (pos !== null) {
+        updates.push({ id: order.id, body: { stageId: targetStageId, position: pos, ...completion } })
+      } else {
+        // No room between neighbours: renumber the whole column
+        const finalList = [...targetList.slice(0, index), order, ...targetList.slice(index)]
+
+        finalList.forEach((o, i) => {
+          const p = (i + 1) * POSITION_STEP
+
+          if (o.id === order.id)
+            updates.push({ id: o.id, body: { stageId: targetStageId, position: p, ...completion } })
+          else if (o.position !== p) updates.push({ id: o.id, body: { position: p } })
         })
-        showSuccess('Pedido movido')
-        refetchOrders()
+      }
+
+      // Optimistic update: the card moves immediately
+      const patches = new Map(updates.map(u => [u.id, u.body]))
+
+      setOrders(prev => prev.map(o => (patches.has(o.id) ? ({ ...o, ...patches.get(o.id) } as Order) : o)))
+
+      try {
+        await Promise.all(updates.map(u => fetchApi(`orders/${u.id}`, { method: 'PATCH', body: u.body })))
       } catch (err: any) {
         showError(err?.message || 'Error al mover pedido')
+        refetchOrders() // roll back to the server state
       }
     },
-    [orders, fetchApi, refetchOrders, showSuccess, showError]
+    [orders, ordersByStage, stages, stageIdOf, fetchApi, setOrders, refetchOrders, showError]
   )
 
-  const handleCardClick = useCallback((order: Order) => {
-    setSelectedOrder(order)
-    setDetailOpen(true)
-  }, [])
+  const openCreate = (stageId: number | null) => {
+    setCreateStageId(stageId)
+    setCreateOpen(true)
+  }
 
   if (stagesLoading || ordersLoading) {
     return (
@@ -674,14 +558,7 @@ export default function OrdersPage() {
           <Button variant='outlined' startIcon={<SettingsIcon />} onClick={() => router.push(ROUTES.ORDERS.STAGES)}>
             Etapas
           </Button>
-          <Button
-            variant='contained'
-            startIcon={<AddIcon />}
-            onClick={() => {
-              setCreateStageId(null)
-              setCreateOpen(true)
-            }}
-          >
+          <Button variant='contained' startIcon={<AddIcon />} onClick={() => openCreate(null)}>
             Nuevo Pedido
           </Button>
         </Box>
@@ -694,25 +571,14 @@ export default function OrdersPage() {
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'flex-start',
-            gap: 2,
-            overflowX: 'auto',
-            pb: 2
-          }}
-        >
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, overflowX: 'auto', pb: 2 }}>
           {stages.map(stage => (
             <StageColumn
               key={stage.id}
               stage={stage}
               orders={ordersByStage[stage.id] || []}
-              onCardClick={handleCardClick}
-              onAddOrder={stageId => {
-                setCreateStageId(stageId)
-                setCreateOpen(true)
-              }}
+              onCardClick={o => setSelectedOrderId(o.id)}
+              onAddOrder={openCreate}
               users={users}
             />
           ))}
@@ -721,30 +587,23 @@ export default function OrdersPage() {
         <DragOverlay>{activeOrder && <OrderCardOverlay order={activeOrder} users={users} />}</DragOverlay>
       </DndContext>
 
-      {/* Create Order Dialog */}
       <CreateOrderDialog
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         onCreated={refetchOrders}
         stages={stages}
         users={users}
-        companyId={companyId}
         initialStageId={createStageId}
+        getNextPosition={getNextPosition}
       />
 
-      {/* Order Detail Modal */}
       <OrderDetailModal
         order={selectedOrder}
-        open={detailOpen}
-        onClose={() => {
-          setDetailOpen(false)
-          setSelectedOrder(null)
-        }}
+        open={selectedOrderId !== null}
+        onClose={() => setSelectedOrderId(null)}
         onUpdated={refetchOrders}
         stages={stages}
         users={users}
-        companyId={companyId}
-        userRole={session?.user?.role}
       />
     </Box>
   )
