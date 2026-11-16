@@ -109,6 +109,26 @@ const cardBaseSx = {
 
 const labelSx = { fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4, fontSize: 10.5 } as const
 
+// Minimal scrollbar: no arrow buttons, transparent track, thin thumb that only shows on hover.
+// Scrolling keeps working (wheel / trackpad / Shift+wheel / keyboard).
+const cleanScrollbarSx = {
+  // Chromium / Edge / Safari
+  '&::-webkit-scrollbar': { width: 6, height: 6 },
+  '&::-webkit-scrollbar-button': { display: 'none', width: 0, height: 0 },
+  '&::-webkit-scrollbar-track': { background: 'transparent' },
+  '&::-webkit-scrollbar-corner': { background: 'transparent' },
+  '&::-webkit-scrollbar-thumb': { background: 'transparent', borderRadius: 8 },
+  '&:hover::-webkit-scrollbar-thumb': { background: 'rgba(128,128,128,0.35)' },
+  '&::-webkit-scrollbar-thumb:hover': { background: 'rgba(128,128,128,0.6)' },
+
+  // Firefox (only where ::-webkit-scrollbar is not supported, so Chromium keeps the rules above)
+  '@supports not selector(::-webkit-scrollbar)': {
+    scrollbarWidth: 'thin',
+    scrollbarColor: 'transparent transparent',
+    '&:hover': { scrollbarColor: 'rgba(128,128,128,0.35) transparent' }
+  }
+} as const
+
 function SortableOrderCard({ order, onClick, users }: OrderCardProps) {
   const [hovered, setHovered] = useState(false)
 
@@ -328,7 +348,7 @@ function StageColumn({ stage, orders, onCardClick, onAddOrder, users }: StageCol
       </Box>
 
       {/* Cards */}
-      <Box ref={setNodeRef} sx={{ flex: 1, overflowY: 'auto', minHeight: 60, px: 0.25 }}>
+      <Box ref={setNodeRef} sx={{ flex: 1, overflowY: 'auto', minHeight: 60, px: 0.25, ...cleanScrollbarSx }}>
         <SortableContext items={orderIds} strategy={verticalListSortingStrategy}>
           {orders.map(order => (
             <SortableOrderCard key={order.id} order={order} onClick={onCardClick} users={users} />
@@ -571,7 +591,7 @@ export default function OrdersPage() {
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, overflowX: 'auto', pb: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, overflowX: 'auto', pb: 2, ...cleanScrollbarSx }}>
           {stages.map(stage => (
             <StageColumn
               key={stage.id}
