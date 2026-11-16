@@ -11,6 +11,7 @@ import {
   Dialog,
   DialogActions,
   DialogContent,
+  DialogContentText,
   DialogTitle,
   FormControl,
   IconButton,
@@ -20,6 +21,7 @@ import {
   Typography
 } from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 
 import { useApi } from '@/hooks/useApi'
 import { useSnackbar } from '@/hooks/useSnackbar'
@@ -49,6 +51,8 @@ export default function OrderDetailModal({ order, open, onClose, onUpdated, stag
   const { fetchApi } = useApi()
   const { showSuccess, showError } = useSnackbar()
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
 
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -113,6 +117,21 @@ export default function OrderDetailModal({ order, open, onClose, onUpdated, stag
       showError(err?.message || 'Error al actualizar pedido')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    setDeleting(true)
+    try {
+      await fetchApi(`orders/${order.id}`, { method: 'DELETE' })
+      showSuccess('Pedido eliminado')
+      setConfirmDeleteOpen(false)
+      onUpdated()
+      onClose()
+    } catch (err: any) {
+      showError(err?.message || 'Error al eliminar pedido')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -243,14 +262,47 @@ export default function OrderDetailModal({ order, open, onClose, onUpdated, stag
         </Box>
       </DialogContent>
 
-      <DialogActions sx={{ px: 3, py: 2 }}>
-        <Button onClick={onClose} disabled={saving} color='secondary'>
-          Cancelar
+      <DialogActions sx={{ px: 3, py: 2, justifyContent: 'space-between' }}>
+        <Button
+          color='error'
+          startIcon={<DeleteOutlineIcon />}
+          onClick={() => setConfirmDeleteOpen(true)}
+          disabled={saving || deleting}
+        >
+          Eliminar
         </Button>
-        <Button variant='contained' onClick={handleSave} disabled={saving} sx={{ minWidth: 120 }}>
-          {saving ? <CircularProgress size={20} color='inherit' /> : 'Guardar'}
-        </Button>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button onClick={onClose} disabled={saving || deleting} color='secondary'>
+            Cancelar
+          </Button>
+          <Button variant='contained' onClick={handleSave} disabled={saving || deleting} sx={{ minWidth: 120 }}>
+            {saving ? <CircularProgress size={20} color='inherit' /> : 'Guardar'}
+          </Button>
+        </Box>
       </DialogActions>
+
+      <Dialog
+        open={confirmDeleteOpen}
+        onClose={deleting ? undefined : () => setConfirmDeleteOpen(false)}
+        maxWidth='xs'
+        fullWidth
+      >
+        <DialogTitle>Eliminar pedido</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            ¿Estás seguro de que deseas eliminar el pedido <strong>{order.orderNumber}</strong>? Esta acción no se puede
+            deshacer.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmDeleteOpen(false)} disabled={deleting} color='secondary'>
+            Cancelar
+          </Button>
+          <Button onClick={handleDelete} disabled={deleting} color='error' variant='contained'>
+            {deleting ? <CircularProgress size={20} color='inherit' /> : 'Eliminar'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Dialog>
   )
 }
