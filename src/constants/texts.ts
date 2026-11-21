@@ -9,6 +9,7 @@ export const VERTICAL_MENU = {
   HOME: 'Inicio',
   CLIENTS: 'Clientes',
   ORDERS: 'Pedidos',
+  TEAM: 'Equipo',
   ABOUT: 'Info'
 }
 

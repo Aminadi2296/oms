@@ -75,6 +75,9 @@ const VerticalMenu = ({ scrollMenu }: Props) => {
         <MenuItem href={ROUTES.ORDERS.INDEX} icon={<i className='ri-file-list-3-line' />}>
           {VERTICAL_MENU.ORDERS}
         </MenuItem>
+        <MenuItem href={ROUTES.TEAM.INDEX} icon={<i className='ri-team-line' />}>
+          {VERTICAL_MENU.TEAM}
+        </MenuItem>
         <MenuItem href={ROUTES.ABOUT} icon={<i className='ri-information-line' />}>
           {VERTICAL_MENU.ABOUT}
         </MenuItem>

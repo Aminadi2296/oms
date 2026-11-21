@@ -34,7 +34,8 @@ export const API_ROUTES = {
     STAGES: (companyId: number) => `companies/${companyId}/stages`,
     STAGE: (companyId: number, stageId: number) => `companies/${companyId}/stages/${stageId}`,
     CATEGORIES: (companyId: number) => `companies/${companyId}/categories`,
-    USERS: (companyId: number) => `companies/${companyId}/users`
+    USERS: (companyId: number) => `companies/${companyId}/users`,
+    USER: (companyId: number, userId: number) => `companies/${companyId}/users/${userId}`
   }
 }
 
@@ -54,6 +55,9 @@ export const ROUTES = {
     STAGES: '/orders/stages',
     CREATE: '/orders/create',
     DETAIL: (id: string | number) => `/orders/${id}`
+  },
+  TEAM: {
+    INDEX: '/team'
   },
   ABOUT: '/about'
 }

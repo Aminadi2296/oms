@@ -33,13 +33,22 @@ export interface Order {
   assignedToName?: string
 }
 
-// ─── Compact user (for assignment dropdown) ─────────────────────────────────
+// ─── Compact user (for assignment dropdown & team module) ──────────────────
+export type UserRole = 'SUPERADMIN' | 'COMPANY_ADMIN' | 'EMPLOYEE' | string
+
 export interface CompanyUser {
   id: number
+  company_id?: number | null
   full_name: string
   email: string
-  role: string
+  role: UserRole
+  job_title?: string | null
+  phone?: string | null
   is_active?: boolean
+  created_at?: string | null
+  active_orders_count?: number
+  completed_orders_count?: number
+
   // Optional profile picture (whichever field the API returns)
   avatar_url?: string | null
   photo_url?: string | null
